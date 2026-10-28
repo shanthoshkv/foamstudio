@@ -8,6 +8,7 @@ from __future__ import annotations
 import html
 import json
 import math
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -176,6 +177,106 @@ def compare_scalar(name: str, actual: float, expected: float, tolerance: float) 
     if abs(actual - expected) > tolerance:
         return [f"{name} {actual} differs from {expected} by more than {tolerance}."]
     return []
+
+
+_APPLICATION = re.compile(r"(?m)^\s*application\s+([A-Za-z_][A-Za-z0-9_]*)\s*;")
+
+
+def inputs_for_case(title: str, case_dir: Path) -> ReportInputs:
+    """Report fields from files a run already wrote. This does not write dictionaries."""
+    from foamstudio.core.logparse import parse_solver_log
+    from foamstudio.core.mesh.check import parse_check_mesh
+
+    solver = "recorded in system/controlDict"
+    control = case_dir / "system" / "controlDict"
+    if control.is_file():
+        match = _APPLICATION.search(control.read_text(encoding="utf-8", errors="replace"))
+        if match is not None:
+            solver = match.group(1)
+
+    mesh_summary = "See case/log.checkMesh when checkMesh has been run."
+    check_log = case_dir / "log.checkMesh"
+    if check_log.is_file():
+        mesh_summary = parse_check_mesh(
+            check_log.read_text(encoding="utf-8", errors="replace")
+        ).summary
+
+    log_path = case_dir / "log.solver"
+    residual = None
+    problems: tuple[str, ...] = ()
+    if log_path.is_file():
+        snapshot = parse_solver_log(log_path.read_text(encoding="utf-8", errors="replace"))
+        if snapshot.residuals:
+            residual = snapshot.residuals[-1].initial
+    else:
+        problems = (
+            f"No solver log was found at {log_path}.",
+            "Run the case, then write the report again.",
+        )
+    return ReportInputs(
+        title=title,
+        solver=solver,
+        mesh_summary=mesh_summary,
+        residual_final=residual,
+        integrals=_force_integrals(case_dir),
+        yplus=_case_yplus(case_dir),
+        gci=None,
+        validation=(),
+        problems=problems,
+    )
+
+
+def _case_yplus(case_dir: Path) -> float | None:
+    from foamstudio.core.mesh.check import average_yplus
+
+    candidates = [case_dir / "log.yPlus", case_dir / "log.yPlusCheck"]
+    post = case_dir / "postProcessing"
+    if post.is_dir():
+        candidates.extend(
+            path
+            for path in sorted(post.rglob("*"))
+            if path.is_file() and "yplus" in path.name.lower()
+        )
+    for path in candidates:
+        if not path.is_file():
+            continue
+        value = average_yplus(path.read_text(encoding="utf-8", errors="replace"))
+        if value is not None:
+            return float(value)
+    return None
+
+
+def _force_integrals(case_dir: Path) -> tuple[tuple[str, float], ...]:
+    from foamstudio.core.logparse import parse_monitor_table
+
+    post = case_dir / "postProcessing"
+    if not post.is_dir():
+        return ()
+    files = [
+        path
+        for path in sorted(post.rglob("*"))
+        if path.is_file() and path.stem.lower().startswith("forces")
+    ]
+    best_time: float | None = None
+    best: tuple[float, ...] | None = None
+    for path in files:
+        samples = parse_monitor_table(
+            path.read_text(encoding="utf-8", errors="replace"), name=path.stem
+        )
+        if not samples:
+            continue
+        sample = samples[-1]
+        if len(sample.values) < 3:
+            continue
+        if best_time is None or sample.time >= best_time:
+            best_time = sample.time
+            best = sample.values[:3]
+    if best is None:
+        return ()
+    return tuple(
+        (label, float(value))
+        for label, value in zip(("force x", "force y", "force z"), best, strict=True)
+    )
 
 
 def load_reference(path: Path) -> dict[str, object]:

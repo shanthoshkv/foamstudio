@@ -254,37 +254,14 @@ def _block_cli(kind: str, project_dir: Path) -> int:
 
 
 def _report_cli(project_dir: Path, destination: Path) -> int:
-    from foamstudio.core.logparse import parse_solver_log
-    from foamstudio.core.post.report import ReportInputs, write_html
+    from foamstudio.core.post.report import inputs_for_case, write_html
     from foamstudio.core.project import ProjectError
 
     try:
         project = _open_or_create(project_dir)
-        log_path = project.case_dir / "log.solver"
-        residual = None
-        problems: tuple[str, ...] = ()
-        if log_path.is_file():
-            snapshot = parse_solver_log(log_path.read_text(encoding="utf-8", errors="replace"))
-            if snapshot.residuals:
-                residual = snapshot.residuals[-1].initial
-        else:
-            problems = (
-                f"No solver log at {log_path}.",
-                "Run the case, then write the report again.",
-            )
-            print(problems[0], file=sys.stderr)
-            print(problems[1], file=sys.stderr)
-        report = ReportInputs(
-            title=project.root.name,
-            solver="recorded in system/controlDict",
-            mesh_summary="See case/log.checkMesh when checkMesh has been run.",
-            residual_final=residual,
-            integrals=(),
-            yplus=None,
-            gci=None,
-            validation=(),
-            problems=problems,
-        )
+        report = inputs_for_case(project.root.name, project.case_dir)
+        for problem in report.problems:
+            print(problem, file=sys.stderr)
         write_html(report, destination)
     except (OSError, ProjectError) as exc:
         print(exc, file=sys.stderr)

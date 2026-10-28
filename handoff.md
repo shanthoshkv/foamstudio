@@ -114,7 +114,7 @@ packaging/                      spec + unsigned installer scripts + FRESH_VM.md
 
 CLI order in `main()`: `--detect-runtimes` first; `--project` without an action exits 2; an action without `--project` exits 2; then write-case, import, block-mesh, report, run. Batch-only commands return 0 and do not open the GUI. `--run-case` / `--command` / `--matrix` require `--runtime` JSON or exit 2. `--report` writes HTML even when `case/log.solver` is missing, prints the problem on stderr, and returns 0.
 
-GUI `write_report` always records the problem "No solver log was found in this project." It does not parse `log.solver`. The CLI `_report_cli` does parse that log when it exists. Expert-mode status text is still "Dictionary editing arrives in a later release." A highlighter exists (`Tools → Dictionary editor...`, `foamstudio/ui/dict_editor.py`). It is not a second solver-dictionary writer.
+GUI `write_report` and CLI `_report_cli` both call `inputs_for_case`. A missing `case/log.solver` still writes HTML and records "No solver log was found". When the log exists, the final initial residual is recorded. `log.checkMesh`, `log.yPlus` / `log.yPlusCheck`, a `postProcessing` yPlus file, `postProcessing/**/forces*`, and `application` in `system/controlDict` are read when those files exist. GCI stays empty because it needs three meshes. Expert mode says the dictionary editor is under Tools. The highlighter (`Tools → Dictionary editor...`, `foamstudio/ui/dict_editor.py`) is not a second solver-dictionary writer.
 
 ## Numbers the tests pin
 
@@ -141,7 +141,7 @@ This is a Qt desktop app. Browser tools do not apply. Verification is pytest-qt 
 - Fluent import is tested by monkeypatching `meshio.read`, not with a binary `.msh` fixture.
 - STEP import is tested with a fake `gmsh` launcher that writes a tiny msh 2.2 file.
 - foamlib is installed (1.9.0, GPL-3.0-only, allowed). `read_field` accepts source `ascii` or `foamlib`. It must not mutate the file (foamlib `FoamFile` is a writable mapping).
-- GUI solver name in `write_report` is hardcoded `simpleFoam`.
+- The report solver name is the `application` entry in `system/controlDict` when that line exists. Otherwise it stays "recorded in system/controlDict".
 - Update rollout parser exists. No UI turns updates on.
 - Issue template discussion URL is `https://github.com/shanthoshkv/foamstudio/discussions`. Enable Discussions on the repo if that page 404s.
 - Inno `AppId` is `{8F3E2A10-6C4B-4A7E-9D11-0F0A0570D109}`. The script was not compiled.
@@ -156,7 +156,7 @@ mypy `ignore_missing_imports` covers `meshio` and `foamlib`. pyvista stays out o
 ## Sensible next work
 
 1. Watch the GitHub Actions run on `shanthoshkv/foamstudio`. Fix a red job and push again. A queued run is not a pass.
-2. On a Linux runner with OpenFOAM, run `tests/runtests.sh` and, separately, `foamstudio --matrix` against one case. Do not replace `runtests.sh`.
-3. If a display exists, set `FOAMSTUDIO_VIEWER=1` and confirm PyVista. Set `FOAMSTUDIO_PARAVIEW` only when ParaView is installed.
-4. Teach the GUI report path to read `case/log.solver` the way `_report_cli` already does.
+2. One ESI v2412 `simpleFoam` channel case ran on WSL `Ubuntu-24.04` through `foamstudio --matrix` on 2026-10-28. `log.checkMesh` says `Mesh OK.` and `log.simpleFoam` ends with `End`. The 225-case `tests/runtests.sh` matrix was not run on this machine. `tests/mkmesh.sh` did build the harness meshes into `~/oftest/mesh`. Do not replace `runtests.sh`.
+3. With `FOAMSTUDIO_VIEWER=1` and `QT_QPA_PLATFORM=offscreen`, a one-triangle surface builds a `QtInteractor` after points are passed as `(n, 3)` rows. ParaView was not launched. Set `FOAMSTUDIO_PARAVIEW` only when ParaView is installed.
+4. Done locally, not pushed while the first Actions run is still going: the GUI report reads `case/log.solver` through `inputs_for_case`.
 5. Keep v1.0 blocked until CI is green, installers are signed, and `packaging/FRESH_VM.md` has real clock times.

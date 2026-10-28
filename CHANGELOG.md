@@ -10,6 +10,8 @@ Phases 3–9 in the working tree. The case generator is unchanged (`GEN_VERSION`
 - Field reader, turboForces numbers, HTML report, GCI, nozzle checks, and `samples/*/reference.json`. PDF uses Qt `QPdfWriter`. ParaView is an external `.foam` / `.pvsm` launch.
 - SSH uses the system `ssh`/`scp` client. Crash upload stays off unless `FOAMSTUDIO_CRASH_UPLOAD=1`. Update feed parsing is inert until configured.
 - Packaging scripts, MkDocs pages, contributing notes, and issue templates. `sign.ps1` refuses to sign without a certificate.
+- The window report and `foamstudio --report` read the same case files: `log.solver`, `log.checkMesh`, yPlus logs, `postProcessing/**/forces*`, and `application` in `system/controlDict` when that line is present. Expert mode points at Tools → Dictionary editor.
+- PyVista receives triangle points as `(n, 3)` rows. A flat coordinate list was rejected before a mesh could be drawn.
 
 ## FoamStudio 0.3.0
 

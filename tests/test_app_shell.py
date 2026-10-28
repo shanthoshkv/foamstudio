@@ -57,6 +57,9 @@ def test_theme_and_font(window: MainWindow, qapp: QApplication, tmp_path: Path) 
     window.set_expert_mode(True)
     saved = (tmp_path / "settings.ini").read_text(encoding="utf-8")
     assert "true" in saved.lower()
+    assert "Dictionary editor" in window.statusBar().currentMessage()
+    window.set_expert_mode(False)
+    assert window.statusBar().currentMessage() == "Expert mode is off."
 
 
 def test_bad_saved_theme_is_reported(

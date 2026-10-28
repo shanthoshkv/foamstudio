@@ -38,7 +38,9 @@
     <message><source>Maximum font size</source><translation>Maximum font size</translation></message>
     <message><source>Minimum font size</source><translation>Minimum font size</translation></message>
     <message><source>Font size reset</source><translation>Font size reset</translation></message>
-    <message><source>Expert mode stores a preference. Dictionary editing arrives in a later release.</source><translation>Expert mode stores a preference. Dictionary editing arrives in a later release.</translation></message>
+    <message><source>Expert mode is on. Dictionary editor is under Tools.</source><translation>Expert mode is on. Dictionary editor is under Tools.</translation></message>
+    <message><source>Expert mode is off.</source><translation>Expert mode is off.</translation></message>
+    <message><source>Report was not written</source><translation>Report was not written</translation></message>
     <message><source>Tools</source><translation>Tools</translation></message>
     <message><source>Runtimes...</source><translation>Runtimes...</translation></message>
     <message><source>Runtime saved</source><translation>Runtime saved</translation></message>

@@ -51,12 +51,11 @@ class Viewer3D(QWidget):
                 "Install pyvista and pyvistaqt. The patch list still works without them."
             )
         try:
-            points: list[float] = []
+            points: list[tuple[float, float, float]] = []
             faces: list[int] = []
             for triangle in surface.triangles:
-                start = len(points) // 3
-                for vertex in (triangle.a, triangle.b, triangle.c):
-                    points.extend(vertex)
+                start = len(points)
+                points.extend((triangle.a, triangle.b, triangle.c))
                 faces.extend((3, start, start + 1, start + 2))
             if not faces:
                 return "The surface has patches but no triangles to draw."

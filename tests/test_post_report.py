@@ -26,6 +26,7 @@ from foamstudio.core.post.report import (
     compare_scalar,
     compare_series,
     gci_fine,
+    inputs_for_case,
     load_reference,
     mach_from_area,
     pressure_ratio,
@@ -199,3 +200,34 @@ def test_validation_samples_match_reference(tmp_path: Path) -> None:
         path = write_html(report, tmp_path / name / "report.html")
         assert path.is_file()
         assert json.loads((_ROOT / "samples" / name / "reference.json").read_text(encoding="utf-8"))
+
+
+def test_inputs_for_case_reads_run_files(tmp_path: Path) -> None:
+    case = tmp_path / "case"
+    (case / "system").mkdir(parents=True)
+    (case / "system" / "controlDict").write_text("application simpleFoam;\n", encoding="utf-8")
+    (case / "log.solver").write_text(
+        "Time = 1\n"
+        "Solving for Ux, Initial residual = 0.2, Final residual = 0.1\n"
+        "Time = 2\n"
+        "Solving for Ux, Initial residual = 1.5e-6, Final residual = 1e-7\n",
+        encoding="utf-8",
+    )
+    (case / "log.checkMesh").write_text(
+        "Mesh non-orthogonality Max: 12\nMax skewness = 0.4\nMesh OK.\n",
+        encoding="utf-8",
+    )
+    (case / "log.yPlus").write_text("patch walls average y+: 31.5\n", encoding="utf-8")
+    forces = case / "postProcessing" / "forces" / "0"
+    forces.mkdir(parents=True)
+    (forces / "forces.dat").write_text("# Time total\n2 1.25 0 0.5\n", encoding="utf-8")
+    report = inputs_for_case("cavity", case)
+    assert report.solver == "simpleFoam"
+    assert report.residual_final == pytest.approx(1.5e-6)
+    assert report.yplus == pytest.approx(31.5)
+    assert report.integrals == (("force x", 1.25), ("force y", 0.0), ("force z", 0.5))
+    assert "Mesh OK: True" in report.mesh_summary
+    assert report.problems == ()
+    missing = inputs_for_case("empty", tmp_path / "absent")
+    assert missing.residual_final is None
+    assert "No solver log was found" in missing.problems[0]

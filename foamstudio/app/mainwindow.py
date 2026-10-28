@@ -322,11 +322,12 @@ class MainWindow(QMainWindow):
 
     def set_expert_mode(self, enabled: bool) -> None:
         self._apply_model(replace(self._model, expert_mode=enabled), persist=True)
-        self.statusBar().showMessage(
-            self.tr(
-                "Expert mode stores a preference. Dictionary editing arrives in a later release."
+        if enabled:
+            self.statusBar().showMessage(
+                self.tr("Expert mode is on. Dictionary editor is under Tools.")
             )
-        )
+        else:
+            self.statusBar().showMessage(self.tr("Expert mode is off."))
 
     def new_project_dialog(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, self.tr("New project folder"))
@@ -765,25 +766,20 @@ class MainWindow(QMainWindow):
         self.properties_dock.setWidget(self._report_panel)
 
     def write_report(self, *, pdf: bool) -> None:
-        from foamstudio.core.post.report import ReportInputs, write_html
+        from foamstudio.core.post.report import inputs_for_case, write_html
 
         if self._project is None:
             logger.error("Create or open a project before writing a report.")
             self.statusBar().showMessage(self.tr("Create or open a project"))
             return
-        report = ReportInputs(
-            title=self._project.root.name,
-            solver="simpleFoam",
-            mesh_summary="blockMeshDict in case/system when a mesh has been written.",
-            residual_final=None,
-            integrals=(),
-            yplus=None,
-            gci=None,
-            validation=(),
-            problems=("No solver log was found in this project.",),
-        )
         html_path = self._project.root / "report.html"
-        write_html(report, html_path)
+        try:
+            report = inputs_for_case(self._project.root.name, self._project.case_dir)
+            write_html(report, html_path)
+        except OSError as exc:
+            logger.error("%s", exc)
+            self.statusBar().showMessage(self.tr("Report was not written"))
+            return
         logger.info("Wrote %s", html_path)
         if pdf:
             from foamstudio.ui.report_panel import write_pdf

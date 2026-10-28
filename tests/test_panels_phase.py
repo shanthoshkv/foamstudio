@@ -66,6 +66,14 @@ def test_mesh_report_and_crash_preference(window: MainWindow, tmp_path: Path) ->
     window.write_report(pdf=False)
     html = (project.root / "report.html").read_text(encoding="utf-8")
     assert "No solver log was found" in html
+    (project.case_dir / "log.solver").write_text(
+        "Time = 1\nSolving for p, Initial residual = 1e-4, Final residual = 1e-5\n",
+        encoding="utf-8",
+    )
+    window.write_report(pdf=False)
+    html = (project.root / "report.html").read_text(encoding="utf-8")
+    assert "0.0001" in html
+    assert "No solver log was found" not in html
     window._on_project_item(window.project_tree.topLevelItem(4), 0)
     window.write_paraview_state()
     assert (project.case_dir / "case.foam").is_file()
@@ -91,3 +99,31 @@ def test_pdf_report(tmp_path: Path) -> None:
     destination = tmp_path / "report.pdf"
     write_pdf("<html><body><h1>Cavity</h1></body></html>", destination)
     assert destination.stat().st_size >= 50
+
+
+def test_viewer_pyvista_points_are_rows(monkeypatch: pytest.MonkeyPatch, qapp: object) -> None:
+    from PySide6.QtWidgets import QWidget
+
+    from foamstudio.core.geometry.model import Patch, Surface, Triangle
+    from foamstudio.ui.viewer3d import Viewer3D
+
+    captured: dict[str, object] = {}
+
+    class FakePlot(QWidget):
+        def add_mesh(self, mesh: object) -> None:
+            point_array = mesh.points  # type: ignore[attr-defined]
+            captured["shape"] = tuple(int(item) for item in point_array.shape)
+            captured["cells"] = int(mesh.n_cells)  # type: ignore[attr-defined]
+
+    monkeypatch.setenv("FOAMSTUDIO_VIEWER", "1")
+    monkeypatch.setattr("pyvistaqt.QtInteractor", lambda parent: FakePlot(parent))
+    surface = Surface(
+        "tri",
+        "stl",
+        (Triangle((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),),
+        (Patch("inlet", "patch", (0,)),),
+    )
+    text = Viewer3D().set_surface(surface)
+    assert "could not build" not in text
+    assert captured["shape"] == (3, 3)
+    assert captured["cells"] == 1
