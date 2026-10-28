@@ -1,0 +1,27 @@
+# System hooks so the repo does not pin a third-party hook mirror.
+# Install the dev extra, then run: pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: python -m ruff check
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff-format
+        entry: python -m ruff format --check
+        language: system
+        types: [python]
+      - id: mypy
+        name: mypy
+        entry: python -m mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: license-audit
+        name: license-audit
+        entry: python scripts/license_audit.py --check
+        language: system
+        pass_filenames: false
+        always_run: true

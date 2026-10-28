@@ -1,0 +1,62 @@
+# Changelog
+
+## FoamStudio 0.9.0
+
+Phases 3–9 in the working tree. The case generator is unchanged (`GEN_VERSION` 2.2.0). This is not a 1.0 release: GitHub CI, signed installers, a fresh-VM timing run, ParaView, sshd, real checkMesh, and the 225-case solver matrix were not executed here.
+
+- Import STL, OBJ, Gmsh 2.2/4.1, Fluent `.msh`, STEP via the `gmsh` executable, and OpenFOAM `constant/polyMesh`. The centre view stays a label until an import succeeds. PyVista loads only when `FOAMSTUDIO_VIEWER=1`.
+- `blockMeshDict` for box, channel, and wedge. `snappyHexMeshDict` first-cell height from a flat-plate y+ estimate. Gmsh stays a subprocess.
+- Job queue for Allrun steps and `./Allrun` (`foamstudio --matrix`). Stop kills the process tree. Live runs set `MSYS_NO_PATHCONV=1`.
+- Field reader, turboForces numbers, HTML report, GCI, nozzle checks, and `samples/*/reference.json`. PDF uses Qt `QPdfWriter`. ParaView is an external `.foam` / `.pvsm` launch.
+- SSH uses the system `ssh`/`scp` client. Crash upload stays off unless `FOAMSTUDIO_CRASH_UPLOAD=1`. Update feed parsing is inert until configured.
+- Packaging scripts, MkDocs pages, contributing notes, and issue templates. `sign.ps1` refuses to sign without a certificate.
+
+## FoamStudio 0.3.0
+
+Phase 2 project and generator bridge. The case generator is unchanged (`GEN_VERSION` 2.2.0).
+
+- A project folder holds `case/`, `geometry/`, and `foamstudio.json` (version, command log, git blob hashes).
+- Write case runs `openfoam_case_generator.html` through Node (`tests/headless.js`) or through Qt WebEngine. Python does not write dictionaries.
+- `foamstudio --write-case case.json --project DIR` writes a case without opening the window.
+- PySide6 Addons supplies Qt WebChannel. PySide6 6.12 supplies Qt WebEngine in `PySide6_WebEngine`. Qt Charts and Qt Data Visualization are not imported.
+
+## FoamStudio 0.2.0
+
+Phase 1 runtime layer. The case generator is unchanged (`GEN_VERSION` 2.2.0).
+
+- Detect native, WSL, and Docker OpenFOAM installations and run a command asynchronously through one interface.
+- WSL runs a case-local LF script. Arguments passed to `wsl.exe` do not contain `$`.
+- Runtime Wizard shows the exact command, offers install commands, and saves the chosen runtime.
+- Linux CI job installs ESI OpenFOAM 2412 and runs `simpleFoam -help` when `FOAMSTUDIO_RUNTIME_INTEGRATION=1`.
+
+## FoamStudio 0.1.0
+
+Phase 0 foundations. The case generator is unchanged (`GEN_VERSION` 2.2.0).
+
+- GPL-3.0-only application licence (ADR-0001). PySide6 Essentials only (ADR-0002).
+- Qt shell: project tree, viewer placeholder, properties, console, dark/light theme, settings, logging, crash report, single-instance guard.
+- `scripts/license_audit.py` fails closed on packages that cannot be combined with GPL-3.0-only.
+- CI launches the shell offscreen on Windows, macOS, and Linux.
+
+## Case generator
+
+Generator version is `GEN_VERSION` in `openfoam_case_generator.html`; it is stamped into every generated
+dictionary and into `case.json`. Bump it whenever generated output changes, and update
+`tests/golden` in the same change (`node tests/check.js --update`, then review the diff).
+
+## 2.2.0
+- `case.json` gains `schema: 1`; specs are validated on load (solver, version, patch names/roles, numbers, control).
+- `applySpec()` / `validateSpec()` split out of the UI so they are testable headless.
+- Test tooling: headless generator (`tests/headless.js`, `gen.js`), golden snapshots + invariants
+  (`tests/check.js`), CI workflow (`.github/workflows/ci.yml`).
+
+## 2.1.0
+- Provenance line in every dictionary; `case.json` in every ZIP; "Load case.json" button.
+- Allrun: checkMesh quality gate (stop on failed checks, auto non-orthogonal correction), y+ report.
+- ESI steady runs stop on inlet-pressure convergence (`runTimeControl`).
+- Fixes: potentialFoam `Phi` solver, per-region `decomposeParDict` for ESI CHT, Foundation torque in `turboPerf.py`.
+
+## 2.0.0
+- Solver registry (25 solvers), version-aware generation for ESI v2006+ and Foundation 5–14.
+- Rotation (MRF/AMI/SRF/overset/rotor disk), CHT multi-region, reacting, XiFoam, VoF/cavitation, solid.
+- 225-case regression on ESI v2406/v2412 and Foundation 12/13/14.

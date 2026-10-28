@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "foamstudio"
+version = "0.9.0"
+description = "Desktop GUI for the OpenFOAM workflow"
+readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Shanthosh K V" }]
+keywords = ["openfoam", "cfd", "gui"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: MacOS X",
+    "Environment :: X11 Applications :: Qt",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "PySide6_Essentials>=6.8,<7",
+    "PySide6_Addons>=6.8,<7",
+    "PySide6_WebEngine>=6.8,<7",
+    "numpy>=1.26",
+    "trimesh>=4",
+    "meshio>=5",
+    "pyvista>=0.44",
+    "pyvistaqt>=0.11",
+    "pyqtgraph>=0.13",
+    "foamlib>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-qt>=4.4",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pip-licenses>=5",
+    "pre-commit>=4",
+    "mkdocs>=1.6",
+    "mkdocs-material>=9",
+]
+
+[project.scripts]
+foamstudio = "foamstudio.app.main:cli"
+
+[tool.setuptools.packages.find]
+include = ["foamstudio*"]
+
+[tool.setuptools.package-data]
+foamstudio = [
+    "py.typed",
+    "app/theme/*.qss",
+    "app/theme/*.svg",
+    "app/i18n/*.ts",
+    "app/i18n/*.qm",
+]
+
+[tool.pytest.ini_options]
+qt_api = "pyside6"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["packaging", "tests/golden"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["foamstudio"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["foamstudio.core"]
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["meshio", "meshio.*", "foamlib", "foamlib.*"]
+ignore_missing_imports = true

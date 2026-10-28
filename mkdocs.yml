@@ -1,0 +1,28 @@
+site_name: FoamStudio
+site_description: Desktop GUI for the OpenFOAM workflow
+docs_dir: docs
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      toggle:
+        icon: material/weather-night
+        name: Dark
+    - scheme: slate
+      primary: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Light
+nav:
+  - Home: index.md
+  - User guide: user-guide.md
+  - Tutorials: tutorials.md
+  - FAQ: faq.md
+  - CLI: cli.md
+  - Decisions: DECISIONS.md
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true

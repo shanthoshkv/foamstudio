@@ -1,0 +1,75 @@
+OK   12_simpleFoam_conv2D: converted by fluentMeshToFoam
+OK   13_simpleFoam_conv2D: converted by fluentMeshToFoam
+OK   14_simpleFoam_conv2D: converted by fluentMeshToFoam
+OK   2406_simpleFoam_conv2D: converted by fluentMeshToFoam
+OK   2412_simpleFoam_conv2D: converted by fluentMeshToFoam
+OK   12_simpleFoam_conv3Dmm: converted by fluent3DMeshToFoam
+OK   12_simpleFoam_conv3Dmm: transformPoints ran
+         Overall domain bounding box (0 0 0) (1 0.2 0.01)
+OK   13_simpleFoam_conv3Dmm: converted by fluent3DMeshToFoam
+OK   13_simpleFoam_conv3Dmm: transformPoints ran
+         Overall domain bounding box (0 0 0) (1 0.2 0.01)
+OK   14_simpleFoam_conv3Dmm: converted by fluent3DMeshToFoam
+OK   14_simpleFoam_conv3Dmm: transformPoints ran
+         Overall domain bounding box (0 0 0) (1 0.2 0.01)
+OK   2406_simpleFoam_conv3Dmm: converted by fluent3DMeshToFoam
+OK   2406_simpleFoam_conv3Dmm: transformPoints ran
+         Overall domain bounding box (0 0 0) (1 0.2 0.01)
+OK   2412_simpleFoam_conv3Dmm: converted by fluent3DMeshToFoam
+OK   2412_simpleFoam_conv3Dmm: transformPoints ran
+         Overall domain bounding box (0 0 0) (1 0.2 0.01)
+OK   12_chtMultiRegionSimpleFoam_par: 2 processors, reconstructed
+OK   12_interFoam_par: 2 processors, reconstructed
+OK   12_pimpleFoam_par: 2 processors, reconstructed
+OK   12_simpleFoam_par: 2 processors, reconstructed
+OK   13_chtMultiRegionSimpleFoam_par: 2 processors, reconstructed
+OK   13_interFoam_par: 2 processors, reconstructed
+OK   13_pimpleFoam_par: 2 processors, reconstructed
+OK   13_simpleFoam_par: 2 processors, reconstructed
+OK   14_chtMultiRegionSimpleFoam_par: 2 processors, reconstructed
+OK   14_interFoam_par: 2 processors, reconstructed
+OK   14_pimpleFoam_par: 2 processors, reconstructed
+OK   14_simpleFoam_par: 2 processors, reconstructed
+OK   2406_chtMultiRegionSimpleFoam_par: 2 processors, reconstructed
+OK   2406_interFoam_par: 2 processors, reconstructed
+OK   2406_pimpleFoam_par: 2 processors, reconstructed
+OK   2406_simpleFoam_par: 2 processors, reconstructed
+OK   2412_chtMultiRegionSimpleFoam_par: 2 processors, reconstructed
+OK   2412_interFoam_par: 2 processors, reconstructed
+OK   2412_pimpleFoam_par: 2 processors, reconstructed
+OK   2412_simpleFoam_par: 2 processors, reconstructed
+OK   12_pimpleFoam_turbo: Torque about axis : -0.00049118 N.m|Total-pressure rise: -88.926 Pa|Efficiency : -34.5770 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   12_simpleFoam_turbo: Torque about axis : -1.0543 N.m|Total-pressure rise: -1505.2 Pa|Efficiency : -0.2727 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   13_pimpleFoam_turbo: Torque about axis : -0.00049118 N.m|Total-pressure rise: -88.927 Pa|Efficiency : -34.5774 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   13_simpleFoam_turbo: Torque about axis : -1.0541 N.m|Total-pressure rise: -1505.4 Pa|Efficiency : -0.2728 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   14_pimpleFoam_turbo: Torque about axis : -0.00049118 N.m|Total-pressure rise: -88.927 Pa|Efficiency : -34.5774 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   14_simpleFoam_turbo: Torque about axis : -1.0541 N.m|Total-pressure rise: -1505.4 Pa|Efficiency : -0.2728 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   2406_pimpleFoam_turbo: Torque about axis : -0.00048598 N.m|Total-pressure rise: -88.909 Pa|Efficiency : -34.9405 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   2406_simpleFoam_turbo: Torque about axis : -1.054 N.m|Total-pressure rise: -1504.8 Pa|Efficiency : -0.2727 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   2412_pimpleFoam_turbo: Torque about axis : -0.00048598 N.m|Total-pressure rise: -88.909 Pa|Efficiency : -34.9405 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   2412_simpleFoam_turbo: Torque about axis : -1.054 N.m|Total-pressure rise: -1504.8 Pa|Efficiency : -0.2727 (pump: Q*dp0/P, turbine: P/(Q*dp0))|
+OK   12_interFoam_potInit: potentialFoam ran
+OK   12_simpleFoam_potInit: potentialFoam ran
+OK   13_interFoam_potInit: potentialFoam ran
+OK   13_simpleFoam_potInit: potentialFoam ran
+OK   14_interFoam_potInit: potentialFoam ran
+OK   14_simpleFoam_potInit: potentialFoam ran
+OK   2406_interFoam_potInit: potentialFoam ran
+OK   2406_simpleFoam_potInit: potentialFoam ran
+OK   2412_interFoam_potInit: potentialFoam ran
+OK   2412_simpleFoam_potInit: potentialFoam ran
+OK   12_simpleFoam_skewGate: max non-orthogonality 75.963757 deg -> nNonOrthogonalCorrectors 2, limited schemes
+OK   13_simpleFoam_skewGate: max non-orthogonality 75.963757 deg -> nNonOrthogonalCorrectors 2, limited schemes
+OK   14_simpleFoam_skewGate: max non-orthogonality 75.963757 deg -> nNonOrthogonalCorrectors 2, limited schemes
+OK   2406_simpleFoam_skewGate: max non-orthogonality 75.963757 deg -> nNonOrthogonalCorrectors 2, limited schemes
+OK   2412_simpleFoam_skewGate: max non-orthogonality 75.963757 deg -> nNonOrthogonalCorrectors 2, limited schemes
+     12_simpleFoam_convStop last step: Time = 152s ; PIMPLE solution converged in 152 iterations
+     13_simpleFoam_convStop last step: Time = 152s ; PIMPLE solution converged in 152 iterations
+     14_simpleFoam_convStop last step: Time = 152s ; PIMPLE solution converged in 152 iterations
+     2406_simpleFoam_convStop last step: Time = 155 ; runTimeControl convStop:
+     2412_simpleFoam_convStop last step: Time = 155 ; runTimeControl convStop:
+OK   12_simpleFoam_yPlus: y+ walls min 57.5 max 69.4 avg 60.9 <-- outside 0-5: refine/coarsen first cell or switch wall treatment|
+OK   13_simpleFoam_yPlus: y+ walls min 57.5 max 69.4 avg 60.9 <-- outside 0-5: refine/coarsen first cell or switch wall treatment|
+OK   14_simpleFoam_yPlus: y+ walls min 57.5 max 69.4 avg 60.9 <-- outside 0-5: refine/coarsen first cell or switch wall treatment|
+OK   2406_simpleFoam_yPlus: y+ walls min 57.4 max 69.4 avg 60.9 <-- outside 0-5: refine/coarsen first cell or switch wall treatment|
+OK   2412_simpleFoam_yPlus: y+ walls min 57.4 max 69.4 avg 60.9 <-- outside 0-5: refine/coarsen first cell or switch wall treatment|

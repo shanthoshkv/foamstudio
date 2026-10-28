@@ -1,0 +1,20 @@
+{
+  "name": "naca0012",
+  "citation": "Ladson, NASA TM 100526, NACA 0012, alpha 0 and 10 degrees",
+  "coefficients": [
+    {
+      "alpha": 0,
+      "cl": 0.0,
+      "cd": 0.008,
+      "cl_tolerance": 0.05,
+      "cd_tolerance": 0.004
+    },
+    {
+      "alpha": 10,
+      "cl": 1.025,
+      "cd": 0.012,
+      "cl_tolerance": 0.025,
+      "cd_tolerance": 0.008
+    }
+  ]
+}

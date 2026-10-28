@@ -1,0 +1,53 @@
+QMainWindow, QDialog, QWidget {
+    background: #f4f6f8;
+    color: #1a1f24;
+}
+QMenuBar, QMenu, QStatusBar, QDockWidget {
+    background: #ffffff;
+    color: #1a1f24;
+    border: none;
+}
+QMenuBar::item:selected, QMenu::item:selected, QMenu::item:hover {
+    background: #007a50;
+    color: #ffffff;
+}
+QDockWidget::title {
+    background: #ffffff;
+    padding: 6px 8px;
+    color: #007a50;
+    border: 1px solid #d5dbe0;
+}
+QTreeWidget, QPlainTextEdit, QTextEdit, QListWidget {
+    background: #ffffff;
+    color: #1a1f24;
+    border: 1px solid #d5dbe0;
+    selection-background-color: #d7f5ea;
+    selection-color: #007a50;
+}
+QTreeWidget::item:selected {
+    background: #d7f5ea;
+    color: #007a50;
+}
+QTabWidget::pane {
+    border: 1px solid #d5dbe0;
+    background: #ffffff;
+}
+QTabBar::tab {
+    background: #e8eef2;
+    color: #4a5560;
+    padding: 6px 12px;
+    border: 1px solid #d5dbe0;
+}
+QTabBar::tab:selected {
+    background: #ffffff;
+    color: #007a50;
+}
+QSplitter::handle {
+    background: #d5dbe0;
+}
+QLabel#placeholder {
+    color: #4a5560;
+}
+QStatusBar {
+    border-top: 1px solid #d5dbe0;
+}

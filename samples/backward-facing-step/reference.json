@@ -1,0 +1,7 @@
+{
+  "name": "backward-facing-step",
+  "citation": "Driver and Seegmiller, AIAA J. 23 (1985), reattachment length",
+  "quantity": "reattachment length xr/h",
+  "value": 6.26,
+  "tolerance": 0.5
+}
