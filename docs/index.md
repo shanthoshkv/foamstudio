@@ -12,7 +12,7 @@ OpenFOAM is not bundled and is not linked. FoamStudio is GPL-3.0-only.
 - Read residuals, fields, turboForces rows, and write an HTML report plus a ParaView `.foam` state.
 - SSH through the system `ssh` client, with SLURM and PBS script text.
 
-Version 1.0 still needs a green GitHub CI run, signed installers, and the fresh-machine timing test. Those were not executed for this tree.
+GitHub Actions run [40618797616](https://github.com/shanthoshkv/foamstudio/actions/runs/40618797616) passed. Version 1.0 still needs signed installers and the fresh-machine timing test. Those were not executed for this tree.
 
 ## Start
 

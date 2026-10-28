@@ -2,7 +2,7 @@
 
 Date: 2026-10-27 for the local checks below. Git publish: 2026-10-28. Author of the app: Shanthosh K V. Working name: FoamStudio.
 Workspace: `C:\Users\kvsha\Documents\Learning\openfoam scripting website`.
-This folder is a git repository on branch `master`. Remote: `https://github.com/shanthoshkv/foamstudio`. The first push publishes this tree. Do not claim a GitHub Actions result until `gh run list --repo shanthoshkv/foamstudio` shows a completed run. Local Playwright captures in `.playwright-mcp/` are gitignored.
+This folder is a git repository on branch `master`. Remote: `https://github.com/shanthoshkv/foamstudio`. Publish commit `4bc1c54` completed Actions run [40618797616](https://github.com/shanthoshkv/foamstudio/actions/runs/40618797616) with conclusion success in 6m33s. Local Playwright captures in `.playwright-mcp/` are gitignored.
 
 `plan.md` is the master prompt. Phases 0–9 are implemented in the working tree. The version is **0.9.0**, not 1.0. `GEN_VERSION` in `openfoam_case_generator.html` is still **2.2.0**. That HTML file was not edited.
 
@@ -43,13 +43,14 @@ Editable install was refreshed. Fallback `foamstudio/__init__.py` is also `"0.9.
 
 ## What did not run, and must not be claimed
 
-- GitHub Actions. `.github/workflows/ci.yml` is the workflow named `ci`. The first run is the 2026-10-28 publish push. A comment on the `foamstudio` job says `--matrix` queues `./Allrun` and that this job does not install OpenFOAM. Record pass or fail only from that run.
-- The 225-case solver matrix (`tests/runtests.sh`, `node tests/gen.js`). The CLI path is wired (`foamstudio --matrix` queues `./Allrun` via `JobQueue.add_matrix`). No solver case was run.
-- Real `checkMesh` / `yPlus` on a mesh. Dict builders and log parsers are unit-tested. Gate a real run behind `FOAMSTUDIO_RUNTIME_INTEGRATION=1`. Do not install OpenFOAM on the 3-OS foamstudio CI job.
+- GitHub Actions run 40618797616 succeeded. Jobs: quality, foamstudio (Windows, macOS, Linux), generator (linux webengine), runtime (linux), openfoam (12), openfoam (2412). The `foamstudio` job still does not install OpenFOAM. `foamstudio --matrix` queues `./Allrun`.
+- The solver artifacts from that run are 39 PASS / 0 FAIL for Foundation 12 and 40 PASS / 0 FAIL for ESI 2412. `verify.txt` has no BAD line. That is the current `tests/runtests.sh` set. Do not call it 225 cases.
+- One local WSL case also ran: ESI v2412 `simpleFoam` on the channel mesh, `log.checkMesh` `Mesh OK.`, `log.simpleFoam` `End`. `tests/mkmesh.sh` built `~/oftest/mesh`.
+- `checkMesh` and a yPlus report ran inside those CI cases. The 2412 yPlus note says walls avg 60.9. The runtime job is `simpleFoam -help` under `FOAMSTUDIO_RUNTIME_INTEGRATION=1`, and that job passed. Do not install OpenFOAM on the 3-OS foamstudio job.
 - ParaView or `pvpython` opening a state. `state_opens` only parses the XML we write. Screenshot tests use the tiny PNG writer in `foamstudio/core/post/image.py` (mean absolute difference). They are not cavity/pitzDaily renders.
 - SSH against sshd. `FOAMSTUDIO_SSH_INTEGRATION=1` is the intended gate. No such test body was added. Argv tests exist.
 - PyInstaller (`FOAMSTUDIO_PYINSTALLER=1`), Inno Setup, MSIX, dmg, AppImage, Flatpak, Authenticode. Scripts exist and refuse to pretend. `packaging/signing/sign.ps1` exits 2 without `FOAMSTUDIO_SIGN_PFX`. `packaging/FRESH_VM.md` says the 15-minute install test was **not** executed.
-- `node tests/check.js` in the phase 3–9 session.
+- `node tests/check.js` was not re-run during phase 3–9. It was run on this machine before the publish push, and the quality job on run 40618797616 passed.
 - Interactive PyVista slice/clip/iso/streamline widgets. The math is in `foamstudio/core/post/filters.py` and is tested. The 3D widget is a summary label unless `FOAMSTUDIO_VIEWER=1`.
 
 ## Status by phase
@@ -156,7 +157,7 @@ mypy `ignore_missing_imports` covers `meshio` and `foamlib`. pyvista stays out o
 ## Sensible next work
 
 1. Watch the GitHub Actions run on `shanthoshkv/foamstudio`. Fix a red job and push again. A queued run is not a pass.
-2. One ESI v2412 `simpleFoam` channel case ran on WSL `Ubuntu-24.04` through `foamstudio --matrix` on 2026-10-28. `log.checkMesh` says `Mesh OK.` and `log.simpleFoam` ends with `End`. The 225-case `tests/runtests.sh` matrix was not run on this machine. `tests/mkmesh.sh` did build the harness meshes into `~/oftest/mesh`. Do not replace `runtests.sh`.
+2. One ESI v2412 `simpleFoam` channel case ran on WSL `Ubuntu-24.04` through `foamstudio --matrix` on 2026-10-28. `log.checkMesh` says `Mesh OK.` and `log.simpleFoam` ends with `End`. CI run 40618797616 also passed the current `tests/runtests.sh` set (39 and 40 cases). `tests/mkmesh.sh` built `~/oftest/mesh`. Do not replace `runtests.sh`.
 3. With `FOAMSTUDIO_VIEWER=1` and `QT_QPA_PLATFORM=offscreen`, a one-triangle surface builds a `QtInteractor` after points are passed as `(n, 3)` rows. ParaView was not launched. Set `FOAMSTUDIO_PARAVIEW` only when ParaView is installed.
 4. Done locally, not pushed while the first Actions run is still going: the GUI report reads `case/log.solver` through `inputs_for_case`.
 5. Keep v1.0 blocked until CI is green, installers are signed, and `packaging/FRESH_VM.md` has real clock times.

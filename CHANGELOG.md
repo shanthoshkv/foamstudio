@@ -2,7 +2,7 @@
 
 ## FoamStudio 0.9.0
 
-Phases 3–9 in the working tree. The case generator is unchanged (`GEN_VERSION` 2.2.0). This is not a 1.0 release: GitHub CI, signed installers, a fresh-VM timing run, ParaView, sshd, real checkMesh, and the 225-case solver matrix were not executed here.
+Phases 3–9 in the working tree. The case generator is unchanged (`GEN_VERSION` 2.2.0). This is not a 1.0 release. GitHub Actions run [40618797616](https://github.com/shanthoshkv/foamstudio/actions/runs/40618797616) on `4bc1c54` passed in 6m33s: quality, foamstudio on Windows, macOS, and Linux, the WebEngine generator, `simpleFoam -help` on ESI v2412, and the solver jobs. Those jobs recorded 39 PASS for Foundation 12 and 40 PASS for ESI 2412, with no FAIL or BAD line. Signed installers, a fresh-VM timing run, ParaView, and sshd were not executed.
 
 - Import STL, OBJ, Gmsh 2.2/4.1, Fluent `.msh`, STEP via the `gmsh` executable, and OpenFOAM `constant/polyMesh`. The centre view stays a label until an import succeeds. PyVista loads only when `FOAMSTUDIO_VIEWER=1`.
 - `blockMeshDict` for box, channel, and wedge. `snappyHexMeshDict` first-cell height from a flat-plate y+ estimate. Gmsh stays a subprocess.
