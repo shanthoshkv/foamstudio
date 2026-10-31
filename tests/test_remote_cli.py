@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import shlex
 from pathlib import Path
 
 import pytest
 
 from foamstudio.app.main import main
+from foamstudio.core.jobs import kill_argv
 from foamstudio.core.runtime import bind
 from foamstudio.core.runtime.model import Installation, RuntimeFailure
 from foamstudio.core.runtime.ssh import pbs_script, pull_argv, push_argv, slurm_script, trame_script
@@ -41,6 +43,12 @@ def test_ssh_plan_batchmode_and_round_trip(tmp_path: Path) -> None:
     assert argv[0] == "ssh"
     assert "BatchMode=yes" in argv
     assert "me@hpc.example" in argv
+    # sshd re-splits the joined remote argv: the whole script must survive as one bash -lc arg
+    remote = shlex.split(" ".join(argv[argv.index("me@hpc.example") + 1 :]))
+    assert remote[:2] == ["bash", "-lc"] and len(remote) == 3
+    assert remote[2] == plan.body
+    kill = shlex.split(kill_argv(_SSH, 42, platform="linux")[-1])
+    assert kill == ["bash", "-lc", "kill -- -42"]
     assert "$" not in _SSH.host
     assert Installation.from_dict(_SSH.to_dict()) == _SSH
     wsl = _WSL.to_dict()
