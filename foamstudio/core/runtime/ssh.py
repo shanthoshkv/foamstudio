@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from foamstudio.core.runtime.model import Installation
-from foamstudio.core.runtime.paths import bash_command
+from foamstudio.core.runtime.paths import bash_command, sh_quote
 
 
 def _reject(label: str, value: str) -> None:
@@ -32,11 +32,15 @@ def ssh_argv(
         "-o",
         "StrictHostKeyChecking=accept-new",
         f"{installation.user}@{installation.host}",
-        "bash",
-        "-lc",
-        body,
+        # ssh joins remote argv with spaces and the remote shell re-splits it,
+        # so the script must travel as one quoted word.
+        remote_bash(body),
     )
     return argv, body
+
+
+def remote_bash(script: str) -> str:
+    return f"bash -lc {sh_quote(script)}"
 
 
 def push_argv(installation: Installation, local: str, remote: str) -> tuple[str, ...]:
