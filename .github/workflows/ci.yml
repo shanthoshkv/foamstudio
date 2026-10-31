@@ -55,7 +55,7 @@ jobs:
           bash tests/verify_extra.sh | tee verify.txt
           ! grep -q "^FAIL" results.txt
           ! grep -q "^BAD" verify.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: results-${{ matrix.version }}
@@ -117,7 +117,7 @@ jobs:
       - name: SBOM (CycloneDX)
         if: runner.os == 'Linux'
         run: python -m cyclonedx_py environment --of JSON -o sbom.cdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: runner.os == 'Linux'
         with:
           name: sbom
