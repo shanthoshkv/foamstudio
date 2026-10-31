@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 
 _WINDOWS = re.compile(r"^[A-Za-z]:/")
+JOB_PID = ".foamstudio/job.pid"
 
 
 def sh_quote(value: str) -> str:

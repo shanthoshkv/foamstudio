@@ -10,7 +10,7 @@ from pathlib import Path
 
 from foamstudio.core.runtime.base import BoundRuntime
 from foamstudio.core.runtime.model import CommandResult, Installation, RuntimeFailure, log_tail
-from foamstudio.core.runtime.paths import launch_env
+from foamstudio.core.runtime.paths import JOB_PID, launch_env
 from foamstudio.core.runtime.probe import Completed, decode_output
 
 MATRIX_ALLRUN = "./Allrun"
@@ -49,6 +49,15 @@ class JobQueue:
         for command in allrun_commands(solver, parallel=parallel, mesh=mesh):
             self.add(command)
 
+    def add_resume(self, solver: str) -> Job:
+        """Continue from the newest time directory. OpenFOAM's foamDictionary edits controlDict."""
+        if not solver.strip():
+            raise ValueError("The solver name is empty.")
+        return self.add(
+            f"foamDictionary system/controlDict -entry startFrom -set latestTime && {solver}",
+            name=f"resume {solver}",
+        )
+
     def add_matrix(self) -> None:
         """The 225-case harness runs `./Allrun`. This is that same step."""
         self.add(MATRIX_ALLRUN, name="Allrun")
@@ -61,8 +70,14 @@ class JobQueue:
                 job.suggestion = "Cancelled before this step started."
         if self.pid is None:
             return None
-        argv = kill_argv(self.runtime.installation, self.pid, platform=sys.platform)
-        return argv
+        pid = self.pid
+        if self.runtime.installation.kind == "wsl":
+            # The Linux process group written by the runner script, not the wsl.exe pid.
+            try:
+                pid = int((self.case / JOB_PID).read_text(encoding="utf-8").strip())
+            except (OSError, ValueError):
+                return None
+        return kill_argv(self.runtime.installation, pid, platform=sys.platform)
 
     def run_blocking(self, *, live: bool = False) -> tuple[Job, ...]:
         return asyncio.run(self._run(live=live))
@@ -79,7 +94,7 @@ class JobQueue:
                 else:
                     result = await self.runtime.run(job.command, self.case)
             except RuntimeFailure as exc:
-                job.status = "failed"
+                job.status = "cancelled" if self._cancel else "failed"
                 job.returncode = exc.returncode
                 job.log_tail = exc.log_tail
                 job.suggestion = exc.suggestion
@@ -104,6 +119,8 @@ class JobQueue:
             )
             self.pid = proc.pid
             out, err = proc.communicate()
+            self.pid = None
+            (self.case / JOB_PID).unlink(missing_ok=True)
             stdout = decode_output(out)
             stderr = decode_output(err)
             code = 0 if proc.returncode is None else proc.returncode

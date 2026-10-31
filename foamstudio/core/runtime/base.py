@@ -20,9 +20,11 @@ from foamstudio.core.runtime.model import (
 )
 from foamstudio.core.runtime.native import detect_native
 from foamstudio.core.runtime.paths import (
+    JOB_PID,
     bash_command,
     host_text,
     launch_env,
+    sh_quote,
     strip_zone_identifiers,
     windows_to_wsl,
     write_runner,
@@ -94,8 +96,13 @@ class BoundRuntime:
             if script is None:
                 script = case / ".foamstudio" / "run.sh"
             mounted_case = windows_to_wsl(host_text(case))
-            body = "#!/bin/bash\n" + bash_command(
-                self.installation.bashrc, mounted_case, command, env
+            # Linux pgid for cancel; wsl.exe's Windows pid means nothing inside WSL.
+            pid_file = sh_quote(f"{mounted_case}/{JOB_PID}")
+            body = (
+                "#!/bin/bash\n"
+                # field 5 of /proc/self/stat is cut's pgid == this script's group (setsid)
+                + f"cut -d' ' -f5 /proc/self/stat > {pid_file}\n"
+                + bash_command(self.installation.bashrc, mounted_case, command, env)
             )
             mounted_script = script_mount(script)
             steps = wsl_steps(self.installation.distro, mounted_script)

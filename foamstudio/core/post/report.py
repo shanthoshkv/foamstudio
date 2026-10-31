@@ -5,6 +5,7 @@ PDF is written by the Qt shell with QPdfWriter. This module stays free of Qt.
 
 from __future__ import annotations
 
+import contextlib
 import html
 import json
 import math
@@ -107,6 +108,7 @@ class ReportInputs:
     gci: float | None
     validation: tuple[str, ...]
     problems: tuple[str, ...] = ()
+    provenance: tuple[tuple[str, str], ...] = ()
 
 
 def render_html(report: ReportInputs) -> str:
@@ -138,7 +140,15 @@ def render_html(report: ReportInputs) -> str:
         "<h2>GCI</h2><table>"
         f"{row('GCI fine', gci)}</table>"
         f"<h2>Validation</h2><ul>{checks}</ul>"
-        f"{problem_block}</body></html>\n"
+        f"{problem_block}"
+        + (
+            "<h2>Provenance</h2><table>"
+            + "".join(row(k, v) for k, v in report.provenance)
+            + "</table>"
+            if report.provenance
+            else ""
+        )
+        + "</body></html>\n"
     )
 
 
@@ -201,7 +211,10 @@ def inputs_for_case(title: str, case_dir: Path) -> ReportInputs:
             check_log.read_text(encoding="utf-8", errors="replace")
         ).summary
 
+    # Allrun's runApplication writes log.<application>; log.solver is FoamStudio's own name.
     log_path = case_dir / "log.solver"
+    if not log_path.is_file() and (case_dir / f"log.{solver}").is_file():
+        log_path = case_dir / f"log.{solver}"
     residual = None
     problems: tuple[str, ...] = ()
     if log_path.is_file():
@@ -223,7 +236,34 @@ def inputs_for_case(title: str, case_dir: Path) -> ReportInputs:
         gci=None,
         validation=(),
         problems=problems,
+        provenance=_provenance(case_dir, log_path),
     )
+
+
+_BUILD = re.compile(r"(?m)^Build\s*:\s*(.+)$")
+_VERSION = re.compile(r"(?m)^\|\s+\\\\\s+/\s+O peration\s+\|\s+Version:\s+(\S+)")
+
+
+def _provenance(case_dir: Path, log_path: Path) -> tuple[tuple[str, str], ...]:
+    """What produced these numbers: spec hash, generator, OpenFOAM build, FoamStudio."""
+    import hashlib
+
+    from foamstudio import __version__
+
+    rows: list[tuple[str, str]] = [("FoamStudio", __version__)]
+    spec = case_dir / "case.json"
+    if spec.is_file():
+        data = spec.read_bytes()
+        rows.append(("case.json sha256", hashlib.sha256(data).hexdigest()))
+        with contextlib.suppress(ValueError, AttributeError):
+            rows.append(("Generator", str(json.loads(data).get("generator", "unknown"))))
+    if log_path.is_file():
+        head = log_path.read_text(encoding="utf-8", errors="replace")[:4000]
+        for label, pattern in (("OpenFOAM version", _VERSION), ("OpenFOAM build", _BUILD)):
+            match = pattern.search(head)
+            if match is not None:
+                rows.append((label, match.group(1).strip()))
+    return tuple(rows)
 
 
 def _case_yplus(case_dir: Path) -> float | None:

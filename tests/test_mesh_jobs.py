@@ -146,6 +146,18 @@ def test_kill_argv_has_no_shell_variable() -> None:
         kill_argv(_NATIVE, 0, platform="win32")
 
 
+def test_wsl_cancel_uses_linux_pgid_and_resume(tmp_path: Path) -> None:
+    queue = JobQueue(bind(_WSL, _Probe()), tmp_path)
+    queue.pid = 9999  # the wsl.exe pid on Windows
+    assert queue.cancel() is None  # no pgid file yet: nothing safe to kill
+    (tmp_path / ".foamstudio").mkdir()
+    (tmp_path / ".foamstudio" / "job.pid").write_text("576\n", encoding="utf-8")
+    argv = queue.cancel()
+    assert argv is not None and argv[-1] == "kill -- -576"
+    job = JobQueue(bind(_WSL, _Probe()), tmp_path).add_resume("simpleFoam")
+    assert "startFrom -set latestTime && simpleFoam" in job.command
+
+
 def test_windows_process_tree_kill() -> None:
     if sys.platform != "win32":
         pytest.skip("taskkill /T is the Windows kill path")

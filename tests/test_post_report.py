@@ -237,3 +237,25 @@ def test_inputs_for_case_reads_run_files(tmp_path: Path) -> None:
     missing = inputs_for_case("empty", tmp_path / "absent")
     assert missing.residual_final is None
     assert "No solver log was found" in missing.problems[0]
+
+
+def test_report_reads_allrun_log_and_provenance(tmp_path: Path) -> None:
+    case = tmp_path / "case"
+    (case / "system").mkdir(parents=True)
+    (case / "system" / "controlDict").write_text("application simpleFoam;\n", encoding="utf-8")
+    (case / "case.json").write_text('{"generator": "2.2.0"}', encoding="utf-8")
+    (case / "log.simpleFoam").write_text(
+        "|  \\\\    /   O peration     | Version:  2412                    |\n"
+        "Build  : _b8cf4d35-20260127 OPENFOAM=2412\n"
+        "Time = 1\nSolving for Ux, Initial residual = 3e-5, Final residual = 1e-7\n",
+        encoding="utf-8",
+    )
+    report = inputs_for_case("cavity", case)
+    assert report.problems == ()
+    assert report.residual_final == pytest.approx(3e-5)
+    rows = dict(report.provenance)
+    assert rows["Generator"] == "2.2.0"
+    assert rows["OpenFOAM version"] == "2412"
+    assert rows["OpenFOAM build"].startswith("_b8cf4d35")
+    assert len(rows["case.json sha256"]) == 64
+    assert "<h2>Provenance</h2>" in render_html(report)

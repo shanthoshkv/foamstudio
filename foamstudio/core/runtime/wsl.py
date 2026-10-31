@@ -59,7 +59,8 @@ def wsl_steps(distro: str, wsl_script: str) -> tuple[tuple[str, ...], tuple[str,
     common = ("wsl.exe", "-d", distro, "--")
     return (
         (*common, "chmod", "+x", wsl_script),
-        (*common, "bash", wsl_script),
+        # setsid: the script leads its own process group, so cancel can kill the whole tree.
+        (*common, "setsid", "-w", "bash", wsl_script),
     )
 
 

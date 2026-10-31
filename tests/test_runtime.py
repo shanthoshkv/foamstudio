@@ -140,7 +140,7 @@ def test_bash_command_shape() -> None:
 def test_wsl_steps_have_no_dollar() -> None:
     chmod, bash = wsl_steps("Ubuntu-24.04", "/mnt/c/cases/check/.foamstudio/run.sh")
     assert chmod[:6] == ("wsl.exe", "-d", "Ubuntu-24.04", "--", "chmod", "+x")
-    assert bash[:5] == ("wsl.exe", "-d", "Ubuntu-24.04", "--", "bash")
+    assert bash[:7] == ("wsl.exe", "-d", "Ubuntu-24.04", "--", "setsid", "-w", "bash")
     joined = " ".join(chmod + bash)
     assert "$" not in joined
     with pytest.raises(ValueError, match=r"\$"):
@@ -224,8 +224,8 @@ def test_wsl_run_writes_an_lf_script(tmp_path: Path) -> None:
     chmod, bash = (probe.calls[0][0], probe.calls[1][0])
     assert chmod[:6] == ("wsl.exe", "-d", "Ubuntu-24.04", "--", "chmod", "+x")
     assert chmod[6] == mounted
-    assert bash[:5] == ("wsl.exe", "-d", "Ubuntu-24.04", "--", "bash")
-    assert bash[5] == mounted
+    assert bash[:7] == ("wsl.exe", "-d", "Ubuntu-24.04", "--", "setsid", "-w", "bash")
+    assert bash[7] == mounted
     assert "$" not in " ".join(chmod + bash)
     assert "/tmp/" not in mounted
 
