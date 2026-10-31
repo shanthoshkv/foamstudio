@@ -45,7 +45,9 @@ class SetupPanel(QWidget):
 
             session = GeneratorSession(self)
             session.bridge.spec_changed.connect(self._store_spec)
-            self._layout.insertWidget(0, session.view)
+            # The web form takes the space; the status label shrinks to one line.
+            self._layout.insertWidget(0, session.view, 1)
+            self._layout.setStretchFactor(self.status, 0)
             self.status.setText(self.tr("Loading the case generator..."))
             session.load()
             self.session = session

@@ -380,6 +380,8 @@ class MainWindow(QMainWindow):
         assert self.setup_dock is not None
         self.setup_dock.show()
         self.setup_dock.raise_()
+        # The generator is a full web form; give it most of the window width.
+        self.resizeDocks([self.setup_dock], [int(self.width() * 0.6)], Qt.Orientation.Horizontal)
 
     def write_case(self) -> None:
         if self._writer is not None and self._writer.isRunning():
@@ -468,6 +470,8 @@ class MainWindow(QMainWindow):
         self._setup.write_requested.connect(self.write_case)
         self.setup_dock = self._dock("setupDock", self.tr("Setup"), self._setup)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.setup_dock)
+        # Share the full right column with Properties instead of a corner split.
+        self.tabifyDockWidget(self.properties_dock, self.setup_dock)
 
     def _report_write_failure(self, message: str) -> None:
         logger.error("%s", message)
