@@ -12,6 +12,7 @@ from foamstudio.core.runtime.base import BoundRuntime
 from foamstudio.core.runtime.model import CommandResult, Installation, RuntimeFailure, log_tail
 from foamstudio.core.runtime.paths import JOB_PID, launch_env
 from foamstudio.core.runtime.probe import Completed, decode_output
+from foamstudio.core.runtime.ssh import remote_bash
 
 MATRIX_ALLRUN = "./Allrun"
 
@@ -190,9 +191,7 @@ def kill_argv(installation: Installation, pid: int, *, platform: str) -> tuple[s
             "-o",
             "BatchMode=yes",
             f"{installation.user}@{installation.host}",
-            "bash",
-            "-lc",
-            f"kill -- -{pid}",
+            remote_bash(f"kill -- -{pid}"),
         )
     if platform == "win32":
         return ("taskkill", "/PID", str(pid), "/T", "/F")
