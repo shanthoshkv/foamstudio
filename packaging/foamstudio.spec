@@ -44,6 +44,19 @@ a = Analysis(
     ],
     noarchive=False,
 )
+
+def _keep(dest):
+    """Drop WebEngine devtools (~83 MB) and non-English Qt translations (~50 MB)."""
+    path = dest.replace("\\", "/")
+    if "qtwebengine_devtools_resources" in path:
+        return False
+    if "/translations/" in path:
+        return path.endswith("qtwebengine_locales/en-US.pak") or "/qtwebengine_locales/" not in path and path.rsplit("/", 1)[-1].endswith("_en.qm")
+    return True
+
+
+a.datas = [entry for entry in a.datas if _keep(entry[0])]
+
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
