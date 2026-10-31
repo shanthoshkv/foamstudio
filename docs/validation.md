@@ -1,6 +1,6 @@
 # Validation
 
-Every number here comes from a real OpenFOAM run on the development machine (WSL Ubuntu 24.04, ESI OpenFOAM v2412, case dictionaries written by the FoamStudio generator 2.2.0). A FAIL stays a FAIL. Nobody tunes a case until it passes.
+Every number here comes from a real OpenFOAM run on the development machine (WSL Ubuntu 24.04, ESI OpenFOAM v2412, case dictionaries written by the FoamStudio generator 2.2.0; the nozzle uses 2.2.1). A FAIL stays a FAIL. Nobody tunes a case until it passes.
 
 | Case | Reference | Quantity | Result | Tolerance | Status |
 | --- | --- | --- | --- | --- | --- |

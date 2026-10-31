@@ -11,7 +11,7 @@ HEAD is `1bb4302` (`docs: record the green Actions run`). The working tree is di
 - `samples/cavity/case.json` — untracked generator spec used for the cavity
 - `handoff.md` — this file
 
-`plan.md` is the master prompt. Phases 0–9 are implemented. The version is **0.9.0**. `GEN_VERSION` in `openfoam_case_generator.html` is still **2.2.0**. That HTML file was not edited. Do not claim 1.0.
+`plan.md` is the master prompt. Phases 0–9 are implemented. The version is **0.9.0**. `GEN_VERSION` in `openfoam_case_generator.html` is **2.2.1** (2026-10-31: waveTransmissive `fieldInf` fix, user approved the bump; goldens regenerated, version-only diff). `foamstudio/core/spec.py` GENERATOR_VERSION matches. Do not claim 1.0.
 
 ## How to run anything on this machine
 
@@ -74,7 +74,7 @@ Sampling: ESI v2412 `sets` rejects type `lineUniform`. The dict that worked is `
 
 ## Do not claim these
 
-- Version 1.0, a `GEN_VERSION` bump, or an edit to `openfoam_case_generator.html`.
+- Version 1.0. (The generator was edited once on 2026-10-31 for the waveTransmissive fix, as 2.2.1.)
 - Backward-facing step, NACA 0012, and nozzle solver comparisons. Their `reference.json` files exist. No OpenFOAM run has been compared for them.
 - ParaView or `pvpython` opening a state. `state_opens` only parses the XML FoamStudio writes. WSL has `/usr/bin/paraview` and `/usr/bin/pvpython`. Neither has been launched from FoamStudio. Screenshot tests use the tiny PNG writer in `foamstudio/core/post/image.py`.
 - SSH against sshd. `FOAMSTUDIO_SSH_INTEGRATION=1` is the intended gate. No such test body was added. Argv tests exist.
@@ -190,7 +190,7 @@ mypy `ignore_missing_imports` covers `meshio` and `foamlib`. pyvista stays out o
 
 1. DONE 2026-10-31. pvpython (WSL) opened `%TEMP%\fs-cavity\case\case.foam`: times [1000.0], fields U and p. The hand-written `write_state` XML loaded **zero sources** in `LoadState`, so it is not valid. Fix: `pvpython_script(foam, image, state)` now emits `SaveState`; the GUI no longer calls `write_state` (kept, commented as not loadable). Generated script ran headless (`pvpython --force-offscreen-rendering`, rc 0) and wrote a PNG and a 186 KB `.pvsm`. The 4.5 KB PNG was not visually inspected. WSL paths: `pvpython_script(..., wsl=True)` rewrites `C:/x` to `/mnt/c/x` via `windows_to_wsl`; the GUI sets it when the saved runtime kind is `wsl`. Verified with a real Windows case path in WSL pvpython (rc 0, PNG + `.pvsm` written). The screenshot shows the cavity square but is not coloured by U. Not tested: GUI "Open in ParaView" launch (`launch_argv` still passes a host path), the GUI button itself. Edits to `paraview.py`, `mainwindow.py`, `tests/test_post_report.py` are uncommitted.
 2. Backward-facing step RAN 2026-10-31 and FAILED the check: xr/h 5.54 / 5.32 vs 6.26 ± 0.5 (see `samples/README.md`; project `%TEMP%s-step`). Ux column in `raw` sets with `axis x` is column 1 (x, Ux, Uy, Uz); sample z must be inside the 1.27 mm slab. Suspects: thin inlet boundary layer (10h run-up), one mesh, SST. Next: longer run-up and a refined mesh before judging; do not retune to pass. Original item text: Reference `samples/backward-facing-step/reference.json`: reattachment length 6.26, tolerance 0.5. NACA 0012 and the nozzle come after the step.
-2c. 2026-10-31 later: step 50h run-up xr/h 5.90 (marginal PASS); nozzle FAIL (+1.7 % / -1.9 % vs 1 %); NACA not run (needs a C-mesh); WSL cancel fixed (Linux pgid); report provenance; PyInstaller bundle works (931 MB); release/docs/SSH workflows added, none run on GitHub; generator waveTransmissive fieldInf fixed, GEN_VERSION not bumped (user to decide). Details: docs/validation.md, samples/README.md, packaging/README.md.
+2c. 2026-10-31 later: step 50h run-up xr/h 5.90 (marginal PASS); nozzle FAIL (+1.7 % / -1.9 % vs 1 %); NACA not run (needs a C-mesh); WSL cancel fixed (Linux pgid); report provenance; PyInstaller bundle works (931 MB); release/docs/SSH workflows added, none run on GitHub; generator waveTransmissive fieldInf fixed, GEN_VERSION bumped to 2.2.1 (user approved). Details: docs/validation.md, samples/README.md, packaging/README.md.
 2b. 2026-10-31 Stage B done locally (plan `~/.claude/plans/read-the-files-md-rosy-sutton.md`): pip-audit clean, SBOM 118 components, CodeQL + Dependabot + SECURITY.md, coverage gate 87 (87.79%), 152 passed / 3 skipped. Licence stays GPL-3.0-only (user decision). Not verified on GitHub: CodeQL run, Dependabot, private vulnerability reporting (enable in repo Settings → Security). The 50h step run (`%TEMP%s-step50`) died at ~180 s; rerun at the end, 30-minute cap (user).
 3. Keep version 0.9.0. Signed installers and `packaging/FRESH_VM.md` still have no certificate and no fresh machine. Do not invent those results.
 4. Commit the cavity notes only when the user asks. Do not push unless asked.

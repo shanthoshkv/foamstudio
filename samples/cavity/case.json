@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generator": "2.2.0",
+  "generator": "2.2.1",
   "openfoamVersion": 2412,
   "caseName": "cavity",
   "state": {

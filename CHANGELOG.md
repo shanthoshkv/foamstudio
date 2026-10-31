@@ -14,7 +14,7 @@ Phases 3–9 in the working tree. The case generator is unchanged (`GEN_VERSION`
 - PyVista receives triangle points as `(n, 3)` rows. A flat coordinate list was rejected before a mesh could be drawn.
 - Supply chain: `pip-audit` CVE scan and CycloneDX SBOM in CI, CodeQL workflow, Dependabot, `SECURITY.md`, coverage gate on `foamstudio/core` (87%, measured 87.79%). Dev deps added: pytest-cov, pip-audit, cyclonedx-bom.
 - ParaView: `pvpython_script` writes the state through `SaveState` (the hand-written `.pvsm` loaded zero sources) and maps Windows paths to `/mnt/<drive>` for WSL.
-- Generator: `waveTransmissive` wrote `fieldInf uniform <v>`; OpenFOAM v2412 needs a bare value and aborted. No golden file uses that BC. `GEN_VERSION` was not bumped.
+- Generator: `waveTransmissive` wrote `fieldInf uniform <v>`; OpenFOAM v2412 needs a bare value and aborted. No golden file uses that BC. `GEN_VERSION` bumped 2.2.0 -> 2.2.1; golden snapshots regenerated, and they differ only in the version string and spec hash.
 - WSL cancel kills the Linux process group; reports read `log.<application>` and include provenance; PyInstaller bundle starts; release, docs and SSH-integration workflows added (not run on GitHub yet).
 - Local step rerun with a 50h run-up: xr/h 5.90 (near-wall line) vs 6.26 ± 0.5, marginal pass; 5.64 at 1 mm.
 - Local nozzle run: choked, exit M +1.7 %, throat p/p0 −1.9 % vs 1-D theory (1 % tolerance): does not pass. NACA 0012 not run.
