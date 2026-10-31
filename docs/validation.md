@@ -5,7 +5,7 @@ Every number here comes from a real OpenFOAM run on the development machine (WSL
 | Case | Reference | Quantity | Result | Tolerance | Status |
 | --- | --- | --- | --- | --- | --- |
 | Lid-driven cavity, Re = 100 | Ghia et al. 1982 | Ux on the vertical centreline, 17 stations | max abs error 0.0121 | 0.05 | **PASS** |
-| Backward-facing step, Re_h ≈ 37,000 | Driver and Seegmiller 1985 | Reattachment xr/h | 5.54 / 5.32 | 6.26 ± 0.5 | **FAIL** |
+| Backward-facing step, Re_h ≈ 37,000 | Driver and Seegmiller 1985 | Reattachment xr/h | 10h run-up: 5.54 (FAIL); 50h run-up: **5.90** | 6.26 ± 0.5 | **PASS** (marginal) |
 | Convergent-divergent nozzle, A/A* = 2 | 1-D isentropic, γ = 1.4 | Exit Mach, throat p/p0 (section averages) | +1.7 % / −1.9 % | 1 % | **FAIL** |
 | NACA 0012, α = 0 and 10° | Ladson, NASA TM 100526 | Cl, Cd | not run, needs a C-mesh | see `samples/naca0012/reference.json` | not run |
 
@@ -23,7 +23,7 @@ Likely reasons for the short reattachment length:
 - Only one mesh was run.
 - SST tends to under-predict xr/h on this case.
 
-Planned next: a 50h run-up and a three-mesh GCI study.
+A 50h run-up (28,000 cells) gives xr/h = 5.90 at the sample line nearest the wall, inside the band by 0.14, and 5.64 one millimetre higher. The pass is marginal and comes from one mesh. A three-mesh GCI study is still needed.
 
 ## Nozzle
 
