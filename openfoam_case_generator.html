@@ -6009,7 +6009,7 @@ ${location ? `    location    "${location}";\n` : ''}    object      ${objectNam
           add(`gamma           1.4;`);
           add(`phi             phi;`);
           add(`lInf            ${fmtV(bc.lInf || 1.0)};`);
-          add(`fieldInf        uniform (${fmtV(bc.Ux || 0)} 0 0);`);
+          add(`fieldInf        (${fmtV(bc.Ux || 0)} 0 0);`);
           add(`value           uniform (0 0 0);`);
         } else if (t === 'zeroGradient') {
           add(`type            zeroGradient;`);
@@ -6038,7 +6038,7 @@ ${location ? `    location    "${location}";\n` : ''}    object      ${objectNam
         } else if (t === 'prghTotalPressure') {
           add(`type            prghTotalPressure;`); add(`p0              uniform ${fmtV(bc.p0 || 0)};`); add(`value           uniform ${fmtV(bc.p0 || 0)};`);
         } else if (t === 'waveTransmissive') {
-          add(`type            waveTransmissive;`); add(`field           p;`); add(`psi             thermo:psi;`); add(`gamma           1.4;`); add(`phi             phi;`); add(`lInf            ${fmtV(bc.lInf || 1.0)};`); add(`fieldInf        uniform ${fmtV(bc.value || 1e5)};`); add(`value           uniform ${fmtV(bc.value || 1e5)};`);
+          add(`type            waveTransmissive;`); add(`field           p;`); add(`psi             thermo:psi;`); add(`gamma           1.4;`); add(`phi             phi;`); add(`lInf            ${fmtV(bc.lInf || 1.0)};`); add(`fieldInf        ${fmtV(bc.value || 1e5)};`); add(`value           uniform ${fmtV(bc.value || 1e5)};`);
         } else if (t === 'advective') {
           add(`type            advective;`); add(`phi             phi;`); add(`value           uniform ${fmtV(bc.value || 0)};`);
         } else if (t === 'symmetryPlane') {

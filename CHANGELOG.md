@@ -14,6 +14,9 @@ Phases 3–9 in the working tree. The case generator is unchanged (`GEN_VERSION`
 - PyVista receives triangle points as `(n, 3)` rows. A flat coordinate list was rejected before a mesh could be drawn.
 - Supply chain: `pip-audit` CVE scan and CycloneDX SBOM in CI, CodeQL workflow, Dependabot, `SECURITY.md`, coverage gate on `foamstudio/core` (87%, measured 87.79%). Dev deps added: pytest-cov, pip-audit, cyclonedx-bom.
 - ParaView: `pvpython_script` writes the state through `SaveState` (the hand-written `.pvsm` loaded zero sources) and maps Windows paths to `/mnt/<drive>` for WSL.
+- Generator: `waveTransmissive` wrote `fieldInf uniform <v>`; OpenFOAM v2412 needs a bare value and aborted. No golden file uses that BC. `GEN_VERSION` was not bumped.
+- WSL cancel kills the Linux process group; reports read `log.<application>` and include provenance; PyInstaller bundle starts; release, docs and SSH-integration workflows added (not run on GitHub yet).
+- Local nozzle run: choked, exit M +1.7 %, throat p/p0 −1.9 % vs 1-D theory (1 % tolerance): does not pass. NACA 0012 not run.
 - Local ESI v2412 cavity: laminar `simpleFoam`, 64×64×1, 1000 iterations. The sampled vertical centerline matched Ghia Re=100 with a largest absolute error of 0.0121, inside the 0.05 tolerance in `samples/cavity/reference.json`. The spec is `samples/cavity/case.json`. The aerofoil and nozzle were not run in that check.
 - Local ESI v2412 backward-facing step, kOmegaSST: reattachment xr/h 5.54 and 5.32 versus 6.26 ± 0.5. Does not pass. Spec in `samples/backward-facing-step/`.
 
