@@ -12,3 +12,5 @@ site/
 *.qm
 .foamstudio/
 .playwright-mcp/
+.coverage
+sbom.cdx.json

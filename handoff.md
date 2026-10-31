@@ -1,10 +1,17 @@
 # FoamStudio handoff
 
-Date: 2026-10-27 for the local checks below. Git publish: 2026-10-28. Author of the app: Shanthosh K V. Working name: FoamStudio.
+Date: local checks 2026-10-27. Git publish 2026-10-28. Cavity comparison 2026-10-30.
+Author of the app: Shanthosh K V. Working name: FoamStudio.
 Workspace: `C:\Users\kvsha\Documents\Learning\openfoam scripting website`.
-This folder is a git repository on branch `master`. Remote: `https://github.com/shanthoshkv/foamstudio`. Publish commit `4bc1c54` completed Actions run [40618797616](https://github.com/shanthoshkv/foamstudio/actions/runs/40618797616) with conclusion success in 6m33s. Local Playwright captures in `.playwright-mcp/` are gitignored.
+Branch `master`. Remote: `https://github.com/shanthoshkv/foamstudio`.
+HEAD is `1bb4302` (`docs: record the green Actions run`). The working tree is dirty and those edits are not committed:
 
-`plan.md` is the master prompt. Phases 0–9 are implemented in the working tree. The version is **0.9.0**, not 1.0. `GEN_VERSION` in `openfoam_case_generator.html` is still **2.2.0**. That HTML file was not edited.
+- `CHANGELOG.md` — cavity bullet under 0.9.0
+- `samples/README.md` — cavity run recorded; step, aerofoil, and nozzle still unchecked
+- `samples/cavity/case.json` — untracked generator spec used for the cavity
+- `handoff.md` — this file
+
+`plan.md` is the master prompt. Phases 0–9 are implemented. The version is **0.9.0**. `GEN_VERSION` in `openfoam_case_generator.html` is still **2.2.0**. That HTML file was not edited. Do not claim 1.0.
 
 ## How to run anything on this machine
 
@@ -21,9 +28,11 @@ Use the CPython 3.12 venv. Do **not** use `py -3`. On this machine that launcher
 .\.venv\Scripts\python -m mkdocs build --strict
 ```
 
-Node on this machine is v24.18.0. The existing generator gate is `node tests/check.js`. It was **not** re-run in the phase 3–9 session because `openfoam_case_generator.html` was not edited. Re-run it before touching the generator. Do not run `node tests/check.js --update` unless generator output actually changes.
+Node on this machine is v24.18.0. The existing generator gate is `node tests/check.js`. It was run on this machine before the publish push, and the quality job passed. Re-run it before touching the generator. Do not run `node tests/check.js --update` unless generator output actually changes.
 
 `tests/conftest.py` forces `QT_QPA_PLATFORM=offscreen`, `FOAMSTUDIO_HEADLESS=1`, and a temp `FOAMSTUDIO_STATE_DIR`. Do not remove that. WebEngine tests pop offscreen and need `FOAMSTUDIO_WEBENGINE=1` plus a real display or xvfb.
+
+PowerShell 5.1 has no `&&`. Chain with `;`. WSL default distro is `Ubuntu-24.04`. OpenFOAM bashrc: `/usr/lib/openfoam/openfoam2412/etc/bashrc`. A reusable runtime record is `%TEMP%\fs-one\runtime.json` (`kind` wsl, `flavour` esi, `version` 2412, that bashrc, `distro` Ubuntu-24.04).
 
 ## What passed locally (2026-10-27)
 
@@ -37,20 +46,40 @@ Node on this machine is v24.18.0. The existing generator gate is `node tests/che
 | `mkdocs build --strict` | built, then the generated `site/` directory was deleted. `site/` is in `.gitignore` |
 | importlib version | `foamstudio.__version__` is `0.9.0` after `pip install -e ".[dev]"` |
 
-The 3 skips are the pre-existing gates (WebEngine byte-identity, PyInstaller one-folder build, real OpenFOAM `simpleFoam -help`). The Windows process-tree kill test **did run** and passed (`taskkill /PID <parent> /T /F` in `tests/test_mesh_jobs.py`). It is skipped only when `sys.platform != "win32"`.
+The full pytest count was not re-run after the report and viewer edits. Those edits were covered by a targeted pytest before commit `798ecb6`. The 3 skips are the pre-existing gates (WebEngine byte-identity, PyInstaller one-folder build, real OpenFOAM `simpleFoam -help`). The Windows process-tree kill test **did run** and passed (`taskkill /PID <parent> /T /F` in `tests/test_mesh_jobs.py`). It is skipped only when `sys.platform != "win32"`.
 
 Editable install was refreshed. Fallback `foamstudio/__init__.py` is also `"0.9.0"`. If a future edit changes `pyproject.toml` dependencies, run `pip install -e ".[dev]"` again before tests that import new packages, then regenerate `THIRD_PARTY_LICENSES.txt`. Do not hand-edit that file.
 
-## What did not run, and must not be claimed
+## Git and CI
 
-- GitHub Actions run 40618797616 succeeded. Jobs: quality, foamstudio (Windows, macOS, Linux), generator (linux webengine), runtime (linux), openfoam (12), openfoam (2412). The `foamstudio` job still does not install OpenFOAM. `foamstudio --matrix` queues `./Allrun`.
-- The solver artifacts from that run are 39 PASS / 0 FAIL for Foundation 12 and 40 PASS / 0 FAIL for ESI 2412. `verify.txt` has no BAD line. That is the current `tests/runtests.sh` set. Do not call it 225 cases.
-- One local WSL case also ran: ESI v2412 `simpleFoam` on the channel mesh, `log.checkMesh` `Mesh OK.`, `log.simpleFoam` `End`. `tests/mkmesh.sh` built `~/oftest/mesh`.
-- `checkMesh` and a yPlus report ran inside those CI cases. The 2412 yPlus note says walls avg 60.9. The runtime job is `simpleFoam -help` under `FOAMSTUDIO_RUNTIME_INTEGRATION=1`, and that job passed. Do not install OpenFOAM on the 3-OS foamstudio job.
-- ParaView or `pvpython` opening a state. `state_opens` only parses the XML we write. Screenshot tests use the tiny PNG writer in `foamstudio/core/post/image.py` (mean absolute difference). They are not cavity/pitzDaily renders.
+Publish commit `4bc1c54` completed Actions run [40618797616](https://github.com/shanthoshkv/foamstudio/actions/runs/40618797616) with conclusion success in 6m33s. Follow-up `1bb4302` completed run [40620644207](https://github.com/shanthoshkv/foamstudio/actions/runs/40620644207), also success. Both runs: quality, foamstudio (Windows, macOS, Linux), generator (linux webengine), runtime (linux), openfoam (12), openfoam (2412).
+
+Solver artifacts, counted from the downloaded logs: 39 PASS / 0 FAIL for Foundation 12 and 40 PASS / 0 FAIL for ESI 2412. `verify.txt` has no BAD line. That is the current `tests/runtests.sh` set. Do not call it 225 cases. The `foamstudio` job does not install OpenFOAM. `foamstudio --matrix` queues `./Allrun`. Do not start another Actions watcher unless a new commit is pushed.
+
+GitHub Discussions are enabled. The issue template points at `https://github.com/shanthoshkv/foamstudio/discussions`. GitHub Pages was not deployed. `mkdocs build --strict` only proves the site builds.
+
+`checkMesh` and a yPlus report ran inside those CI cases. The 2412 yPlus note says walls avg 60.9. That is not a flat-plate y+ match. The runtime job is `simpleFoam -help` under `FOAMSTUDIO_RUNTIME_INTEGRATION=1`, and that job passed.
+
+## Local solver runs
+
+Channel, 2026-10-28. ESI v2412 `simpleFoam` through `foamstudio --matrix` on WSL `Ubuntu-24.04`. Project `%TEMP%\fs-one`. Mesh copied from `~/oftest/mesh/channel2d` after `tests/mkmesh.sh`. `log.checkMesh` says `Mesh OK.` `log.simpleFoam` ends with `End`. Do not replace `runtests.sh`.
+
+Cavity, 2026-10-30. Laminar lid-driven cavity, Re=100, same WSL runtime. Project `%TEMP%\fs-cavity` (outside git). Spec now in `samples/cavity/case.json`: `simpleFoam`, `turbModel` laminar, `nu` 0.01, lid patch `yMax` type `translatingWallVelocity` with U = (1 0 0), walls `xMin` / `xMax` / `yMin` left to the generator default `noSlip`, `zMin` / `zMax` role `empty`. Control `endTime` 1000, `writeInterval` 1000, residuals `1e-12` so `residualControl` does not stop before the only write.
+
+FoamStudio wrote the dictionaries with `--write-case`. Python wrote `system/blockMeshDict` via `block_mesh_dict("box", length=1, height=1, width=0.1, cells=(64, 64, 1))`. CLI `--block-mesh` cannot set the cell counts. The run command that worked was `bash ./Allrun`. `bash Allrun` fails: `Allrun` does `cd "${0%/*}"`, and without the `./` that path is the script name. `log.checkMesh` says `Mesh OK.` `log.simpleFoam` ends with `End` at time 1000. Execution time about 6 s, clock time about 14 s. At time 1000 the U initial residuals were about 4.8e-5. `blockMesh` printed an IOWarning that `convertToMeters` is older than `scale`. The mesh still built. Leave `convertToMeters` in place; older supported OpenFOAM versions use that keyword.
+
+Sampling: ESI v2412 `sets` rejects type `lineUniform`. The dict that worked is `system/sampleDict`, type `sets`, set type `uniform`, axis `y`, from `(0.5 0 0.05)` to `(0.5 1 0.05)`, 201 points, field `U`. Command: `postProcess -func sampleDict -latestTime`. Output: `postProcessing/sampleDict/1000/vertical_U.xy` (columns y, Ux, Uy, Uz). Ux was interpolated onto the Ghia y stations and passed to `compare_series`. All 17 stations passed tolerance 0.05. Largest absolute error 0.0121 at y = 0.7344. This clock time is the solver only. It is not the fresh-VM install test.
+
+`onSolverChange()` in the HTML generator refreshes widgets and the apply path restores `control`. It did not wipe `nu` or the patches on this spec. Confirm `0/U`, `constant/transportProperties`, and `constant/turbulenceProperties` after any new spec before solving. Do not copy the stock icoFoam cavity tutorial. That tutorial is a different Reynolds number.
+
+## Do not claim these
+
+- Version 1.0, a `GEN_VERSION` bump, or an edit to `openfoam_case_generator.html`.
+- Backward-facing step, NACA 0012, and nozzle solver comparisons. Their `reference.json` files exist. No OpenFOAM run has been compared for them.
+- ParaView or `pvpython` opening a state. `state_opens` only parses the XML FoamStudio writes. WSL has `/usr/bin/paraview` and `/usr/bin/pvpython`. Neither has been launched from FoamStudio. Screenshot tests use the tiny PNG writer in `foamstudio/core/post/image.py`.
 - SSH against sshd. `FOAMSTUDIO_SSH_INTEGRATION=1` is the intended gate. No such test body was added. Argv tests exist.
-- PyInstaller (`FOAMSTUDIO_PYINSTALLER=1`), Inno Setup, MSIX, dmg, AppImage, Flatpak, Authenticode. Scripts exist and refuse to pretend. `packaging/signing/sign.ps1` exits 2 without `FOAMSTUDIO_SIGN_PFX`. `packaging/FRESH_VM.md` says the 15-minute install test was **not** executed.
-- `node tests/check.js` was not re-run during phase 3–9. It was run on this machine before the publish push, and the quality job on run 40618797616 passed.
+- PyInstaller (`FOAMSTUDIO_PYINSTALLER=1`), Inno Setup, MSIX, dmg, AppImage, Flatpak, Authenticode. Scripts exist and refuse to pretend. `packaging/signing/sign.ps1` exits 2 without `FOAMSTUDIO_SIGN_PFX`. `packaging/FRESH_VM.md` says the 15-minute install test was not executed. Do not invent clock times.
+- A live docs site. The MkDocs build was local. GitHub Pages was not deployed.
 - Interactive PyVista slice/clip/iso/streamline widgets. The math is in `foamstudio/core/post/filters.py` and is tested. The 3D widget is a summary label unless `FOAMSTUDIO_VIEWER=1`.
 
 ## Status by phase
@@ -63,16 +92,16 @@ Editable install was refreshed. Fallback `foamstudio/__init__.py` is also `"0.9.
 | 3 Import + viewer | Coded and unit-tested. Startup centre widget stays the QLabel `viewer` ("No geometry loaded.") until `MainWindow.import_geometry`. Tree clicks swap the **properties dock**, not the centre. ADR-0008. |
 | 4 Meshing | Coded and unit-tested. `blockMeshDict` box/channel/wedge, `snappyHexMeshDict`, Gmsh subprocess driver, `checkMesh` parser. |
 | 5 Run + monitor | Coded and unit-tested with a fake probe (`live=False`). CLI `--run-case` uses `live=True`. GUI uses a second `QThread`. |
-| 6 Post | Field parse, turboForces, ParaView file writer, filters, PNG diff. foamlib may tag a field as source `foamlib` but values come from the ASCII parser. ADR-0009. |
-| 7 Reports + V&V | HTML, Qt PDF (`QPdfWriter`, tested offscreen), GCI, nozzle, four `samples/*/reference.json`. Reports compare a perturbed series to the reference. They are not solver results. |
+| 6 Post | Field parse, turboForces, ParaView file writer, filters, PNG diff. foamlib may tag a field as source `foamlib` but values come from the ASCII parser. ADR-0009. A real ParaView process has not opened a state. |
+| 7 Reports + V&V | HTML, Qt PDF (`QPdfWriter`, tested offscreen), GCI, nozzle, four `samples/*/reference.json`. Unit tests compare a perturbed series. The 2026-10-30 cavity run is a separate, real solver comparison. The other three samples have no solver comparison. |
 | 8 SSH | OpenSSH client, SLURM/PBS text, scp argv, optional trame **script** (trame is not a dependency). ADR-0007. |
-| 9 Distribution | Scripts, MkDocs, CONTRIBUTING, CODE_OF_CONDUCT, issue templates, crash upload off by default, update-feed parser. ADR-0010, ADR-0011. |
+| 9 Distribution | Scripts, MkDocs, CONTRIBUTING, CODE_OF_CONDUCT, issue templates, crash upload off by default, update-feed parser. ADR-0010, ADR-0011. Installers were not built or signed. |
 
-ADRs 0001–0011 are in `docs/DECISIONS.md`. Changelog top section is 0.9.0.
+ADRs 0001–0011 are in `docs/DECISIONS.md`. Changelog top section is 0.9.0. ADR-0004 still says "SSH stays Phase 8". ADR-0007 is the later decision that SSH uses OpenSSH. Do not rewrite ADR-0001–0006.
 
 ## Hard rules (do not regress)
 
-- `openfoam_case_generator.html` is the only solver-dictionary writer. Mesh dictionaries (`blockMeshDict`, `snappyHexMeshDict`) are allowed in `foamstudio/core/mesh/`. Do not use foamlib to write the 25 solver dictionaries.
+- `openfoam_case_generator.html` is the only solver-dictionary writer. Mesh dictionaries (`blockMeshDict`, `snappyHexMeshDict`) and a post-processing `sampleDict` are allowed. Do not use foamlib to write the 25 solver dictionaries.
 - Do not bump `GEN_VERSION` or rewrite `tests/golden/` unless generator output changes.
 - OpenFOAM, Gmsh, and ParaView are external processes. Never link them.
 - `foamstudio/core` is Qt-free and mypy-strict (`packages = ["foamstudio.core"]`). `tests/test_licenses.py` rglob-asserts no `PySide`/`PyQt` under `core/`.
@@ -91,7 +120,7 @@ ADRs 0001–0011 are in `docs/DECISIONS.md`. Changelog top section is 0.9.0.
 - `detect()` does not scan SSH unless a record is configured.
 - Do not put `$` in `wsl.exe` argv. SSH rejects `$` in host, user, remote path, and bashrc. A `$` inside the remote `bash -lc` script body is acceptable.
 - Ask before adding a dependency that is not already in `plan.md` section 3, before changing the licence, and before writing outside this repo.
-- The remote is `https://github.com/shanthoshkv/foamstudio` on branch `master`. Commit and push only when the user asks.
+- Commit and push only when the user asks. The remote is `https://github.com/shanthoshkv/foamstudio` on branch `master`.
 
 ## Layout the next session will touch
 
@@ -108,6 +137,7 @@ foamstudio/core/runtime/ssh.py  ssh/scp/slurm/pbs/trame script.
 foamstudio/core/telemetry.py    maybe_upload.
 foamstudio/core/update.py       Atom feed parser. Nothing enables it.
 foamstudio/ui/                  Panels. PyVista and pyqtgraph are lazy.
+samples/cavity/case.json        Untracked spec for the Re=100 cavity.
 samples/cavity|backward-facing-step|naca0012|nozzle/reference.json
 docs/                           MkDocs pages + DECISIONS.md
 packaging/                      spec + unsigned installer scripts + FRESH_VM.md
@@ -117,12 +147,14 @@ CLI order in `main()`: `--detect-runtimes` first; `--project` without an action 
 
 GUI `write_report` and CLI `_report_cli` both call `inputs_for_case`. A missing `case/log.solver` still writes HTML and records "No solver log was found". When the log exists, the final initial residual is recorded. `log.checkMesh`, `log.yPlus` / `log.yPlusCheck`, a `postProcessing` yPlus file, `postProcessing/**/forces*`, and `application` in `system/controlDict` are read when those files exist. GCI stays empty because it needs three meshes. Expert mode says the dictionary editor is under Tools. The highlighter (`Tools → Dictionary editor...`, `foamstudio/ui/dict_editor.py`) is not a second solver-dictionary writer.
 
+With `FOAMSTUDIO_VIEWER=1` and `QT_QPA_PLATFORM=offscreen`, a one-triangle surface builds a `QtInteractor` after points are passed as `(n, 3)` rows. That check was local. It is in the pushed viewer fix `798ecb6`.
+
 ## Numbers the tests pin
 
 - Flat plate: `U=1`, `nu=1e-5`, `L=1`, `y+=30` → `first_cell_height` ≈ `0.005570860145311557`. `yplus_matches(30, 31.5)` passes; `40` fails at tolerance 0.2. Do not paste that formula into a fake measured-yPlus fixture.
 - GCI: `gci_fine(1.0, 1.1, 1.3, 2)` == `0.125`. Ratio `<= 1` raises `ReportFailure`.
 - Nozzle, gamma 1.4: `pressure_ratio(1)` ≈ `0.5282817877171742`. Supersonic `mach_from_area(2)` ≈ `2.1971981216521863`.
-- Ghia Re=100 vertical centreline is in `samples/cavity/reference.json`, absolute tolerance 0.05.
+- Ghia Re=100 vertical centreline is in `samples/cavity/reference.json`, absolute tolerance 0.05. The 2026-10-30 run's largest error was 0.0121.
 - Backward-facing step reattachment `6.26 ± 0.5`.
 - NACA 0012: Cl(0)=0, Cd(0)=0.008, Cl(10)=1.025 with the tolerances in `samples/naca0012/reference.json`.
 
@@ -144,9 +176,9 @@ This is a Qt desktop app. Browser tools do not apply. Verification is pytest-qt 
 - foamlib is installed (1.9.0, GPL-3.0-only, allowed). `read_field` accepts source `ascii` or `foamlib`. It must not mutate the file (foamlib `FoamFile` is a writable mapping).
 - The report solver name is the `application` entry in `system/controlDict` when that line exists. Otherwise it stays "recorded in system/controlDict".
 - Update rollout parser exists. No UI turns updates on.
-- Issue template discussion URL is `https://github.com/shanthoshkv/foamstudio/discussions`. Enable Discussions on the repo if that page 404s.
 - Inno `AppId` is `{8F3E2A10-6C4B-4A7E-9D11-0F0A0570D109}`. The script was not compiled.
 - Later validation samples from `plan.md` (mixer, damBreak, heated cavity, plate with hole) are out of scope.
+- The WSL runner chmods `.foamstudio/run.sh`, not `Allrun`. Invoke Allrun as `bash ./Allrun` unless the case file is already executable.
 
 ## Dependencies already in the venv
 
@@ -154,10 +186,10 @@ Declared in `pyproject.toml`: PySide6 Essentials, Addons, WebEngine 6.12; numpy 
 
 mypy `ignore_missing_imports` covers `meshio` and `foamlib`. pyvista stays out of the core import path.
 
-## Sensible next work
+## Next work
 
-1. Watch the GitHub Actions run on `shanthoshkv/foamstudio`. Fix a red job and push again. A queued run is not a pass.
-2. One ESI v2412 `simpleFoam` channel case ran on WSL `Ubuntu-24.04` through `foamstudio --matrix` on 2026-10-28. `log.checkMesh` says `Mesh OK.` and `log.simpleFoam` ends with `End`. CI run 40618797616 also passed the current `tests/runtests.sh` set (39 and 40 cases). `tests/mkmesh.sh` built `~/oftest/mesh`. Do not replace `runtests.sh`.
-3. With `FOAMSTUDIO_VIEWER=1` and `QT_QPA_PLATFORM=offscreen`, a one-triangle surface builds a `QtInteractor` after points are passed as `(n, 3)` rows. ParaView was not launched. Set `FOAMSTUDIO_PARAVIEW` only when ParaView is installed.
-4. Done locally, not pushed while the first Actions run is still going: the GUI report reads `case/log.solver` through `inputs_for_case`.
-5. Keep v1.0 blocked until CI is green, installers are signed, and `packaging/FRESH_VM.md` has real clock times.
+1. DONE 2026-10-31. pvpython (WSL) opened `%TEMP%\fs-cavity\case\case.foam`: times [1000.0], fields U and p. The hand-written `write_state` XML loaded **zero sources** in `LoadState`, so it is not valid. Fix: `pvpython_script(foam, image, state)` now emits `SaveState`; the GUI no longer calls `write_state` (kept, commented as not loadable). Generated script ran headless (`pvpython --force-offscreen-rendering`, rc 0) and wrote a PNG and a 186 KB `.pvsm`. The 4.5 KB PNG was not visually inspected. WSL paths: `pvpython_script(..., wsl=True)` rewrites `C:/x` to `/mnt/c/x` via `windows_to_wsl`; the GUI sets it when the saved runtime kind is `wsl`. Verified with a real Windows case path in WSL pvpython (rc 0, PNG + `.pvsm` written). The screenshot shows the cavity square but is not coloured by U. Not tested: GUI "Open in ParaView" launch (`launch_argv` still passes a host path), the GUI button itself. Edits to `paraview.py`, `mainwindow.py`, `tests/test_post_report.py` are uncommitted.
+2. Backward-facing step RAN 2026-10-31 and FAILED the check: xr/h 5.54 / 5.32 vs 6.26 ± 0.5 (see `samples/README.md`; project `%TEMP%s-step`). Ux column in `raw` sets with `axis x` is column 1 (x, Ux, Uy, Uz); sample z must be inside the 1.27 mm slab. Suspects: thin inlet boundary layer (10h run-up), one mesh, SST. Next: longer run-up and a refined mesh before judging; do not retune to pass. Original item text: Reference `samples/backward-facing-step/reference.json`: reattachment length 6.26, tolerance 0.5. NACA 0012 and the nozzle come after the step.
+2b. 2026-10-31 Stage B done locally (plan `~/.claude/plans/read-the-files-md-rosy-sutton.md`): pip-audit clean, SBOM 118 components, CodeQL + Dependabot + SECURITY.md, coverage gate 87 (87.79%), 152 passed / 3 skipped. Licence stays GPL-3.0-only (user decision). Not verified on GitHub: CodeQL run, Dependabot, private vulnerability reporting (enable in repo Settings → Security). The 50h step run (`%TEMP%s-step50`) died at ~180 s; rerun at the end, 30-minute cap (user).
+3. Keep version 0.9.0. Signed installers and `packaging/FRESH_VM.md` still have no certificate and no fresh machine. Do not invent those results.
+4. Commit the cavity notes only when the user asks. Do not push unless asked.

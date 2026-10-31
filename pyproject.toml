@@ -47,6 +47,9 @@ dev = [
     "pre-commit>=4",
     "mkdocs>=1.6",
     "mkdocs-material>=9",
+    "pytest-cov>=5",
+    "pip-audit>=2.7",
+    "cyclonedx-bom>=5",
 ]
 
 [project.scripts]
@@ -69,6 +72,13 @@ qt_api = "pyside6"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q --tb=short"
+
+[tool.coverage.run]
+source = ["foamstudio/core"]
+
+[tool.coverage.report]
+# ponytail: gate below measured 87.79% (2026-10-31); plan.md target is 90%, raise when core tests catch up
+fail_under = 87
 
 [tool.ruff]
 line-length = 100

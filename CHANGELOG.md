@@ -12,6 +12,10 @@ Phases 3–9 in the working tree. The case generator is unchanged (`GEN_VERSION`
 - Packaging scripts, MkDocs pages, contributing notes, and issue templates. `sign.ps1` refuses to sign without a certificate.
 - The window report and `foamstudio --report` read the same case files: `log.solver`, `log.checkMesh`, yPlus logs, `postProcessing/**/forces*`, and `application` in `system/controlDict` when that line is present. Expert mode points at Tools → Dictionary editor.
 - PyVista receives triangle points as `(n, 3)` rows. A flat coordinate list was rejected before a mesh could be drawn.
+- Supply chain: `pip-audit` CVE scan and CycloneDX SBOM in CI, CodeQL workflow, Dependabot, `SECURITY.md`, coverage gate on `foamstudio/core` (87%, measured 87.79%). Dev deps added: pytest-cov, pip-audit, cyclonedx-bom.
+- ParaView: `pvpython_script` writes the state through `SaveState` (the hand-written `.pvsm` loaded zero sources) and maps Windows paths to `/mnt/<drive>` for WSL.
+- Local ESI v2412 cavity: laminar `simpleFoam`, 64×64×1, 1000 iterations. The sampled vertical centerline matched Ghia Re=100 with a largest absolute error of 0.0121, inside the 0.05 tolerance in `samples/cavity/reference.json`. The spec is `samples/cavity/case.json`. The aerofoil and nozzle were not run in that check.
+- Local ESI v2412 backward-facing step, kOmegaSST: reattachment xr/h 5.54 and 5.32 versus 6.26 ± 0.5. Does not pass. Spec in `samples/backward-facing-step/`.
 
 ## FoamStudio 0.3.0
 

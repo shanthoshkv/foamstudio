@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from foamstudio.core.runtime.paths import windows_to_wsl
 
 
 class ParaViewFailure(Exception):
@@ -25,6 +28,7 @@ def write_foam(case: Path) -> Path:
 
 
 def write_state(foam_file: Path, state_file: Path) -> Path:
+    # NOT loadable: ParaView 2026-10-31 LoadState gives zero sources. Use pvpython_script(state=).
     root = ET.Element("ParaView")
     server = ET.SubElement(root, "ServerManagerState", version="5.11.0")
     proxy = ET.SubElement(server, "Proxy", group="sources", type="OpenFOAMReader", id="1")
@@ -60,15 +64,28 @@ def state_opens(state_file: Path) -> str:
     return element.attrib["value"]
 
 
-def pvpython_script(foam_file: Path, image: Path) -> str:
-    foam = str(foam_file).replace("\\", "/")
-    picture = str(image).replace("\\", "/")
+def _script_path(path: Path, wsl: bool) -> str:
+    text = str(path).replace("\\", "/")
+    return windows_to_wsl(text) if wsl and re.match(r"[A-Za-z]:/", text) else text
+
+
+def pvpython_script(
+    foam_file: Path, image: Path, state: Path | None = None, *, wsl: bool = False
+) -> str:
+    """Run under pvpython. With `state`, ParaView itself writes a loadable .pvsm.
+
+    `wsl=True` rewrites `C:/x` to `/mnt/c/x` for a pvpython inside WSL.
+    """
+    foam = _script_path(foam_file, wsl)
+    picture = _script_path(image, wsl)
+    save = f'SaveState("{_script_path(state, wsl)}")\n' if state else ""
     return (
         "from paraview.simple import GetActiveViewOrCreate, OpenFOAMReader, "
-        "SaveScreenshot, Show\n"
+        "SaveScreenshot, SaveState, Show\n"
         f'reader = OpenFOAMReader(FileName="{foam}")\n'
         "Show(reader)\n"
         "view = GetActiveViewOrCreate('RenderView')\n"
+        f"{save}"
         f'SaveScreenshot("{picture}", view)\n'
     )
 

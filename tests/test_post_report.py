@@ -104,6 +104,12 @@ def test_paraview_state_and_image(tmp_path: Path) -> None:
     assert state_opens(state).endswith(".foam")
     script = pvpython_script(foam, case / "shot.png")
     assert "OpenFOAMReader" in script
+    win = pvpython_script(
+        Path("C:/Cases/a"), Path("C:\\Cases\\a.png"), Path("C:/Cases/a.pvsm"), wsl=True
+    )
+    assert 'FileName="/mnt/c/Cases/a"' in win
+    assert 'SaveState("/mnt/c/Cases/a.pvsm")' in win
+    assert "C:" not in win
     assert launch_argv("paraview", state)[0] == "paraview"
     with pytest.raises(ParaViewFailure, match="FOAMSTUDIO_PARAVIEW"):
         launch_argv("  ", state)

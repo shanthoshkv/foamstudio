@@ -1,0 +1,119 @@
+{
+  "schema": 1,
+  "generator": "2.2.0",
+  "openfoamVersion": 2412,
+  "caseName": "cavity",
+  "state": {
+    "pInf": 100000,
+    "motion": "none",
+    "meshDim": "3D",
+    "meshScale": 1,
+    "rotRPM": 1000,
+    "rotZone": "rotor",
+    "solver": "simpleFoam",
+    "turbModel": "laminar",
+    "wallTx": "highRe",
+    "nu": 0.01,
+    "rho": 1.225,
+    "Tref": 300,
+    "Cp": 1005,
+    "lambda": 0.025,
+    "patches": [
+      {
+        "name": "xMin",
+        "role": "wall",
+        "fields": {}
+      },
+      {
+        "name": "xMax",
+        "role": "wall",
+        "fields": {}
+      },
+      {
+        "name": "yMin",
+        "role": "wall",
+        "fields": {}
+      },
+      {
+        "name": "yMax",
+        "role": "wall",
+        "fields": {
+          "U": {
+            "type": "translatingWallVelocity",
+            "Ux": 1,
+            "Uy": 0,
+            "Uz": 0
+          }
+        }
+      },
+      {
+        "name": "zMin",
+        "role": "empty",
+        "fields": {}
+      },
+      {
+        "name": "zMax",
+        "role": "empty",
+        "fields": {}
+      }
+    ],
+    "control": {
+      "startTime": 0,
+      "endTime": 1000,
+      "deltaT": 1,
+      "writeInterval": 1000,
+      "writeControl": "timeStep",
+      "purgeWrite": 0,
+      "maxCo": 0.5,
+      "runTimeMod": true
+    },
+    "schemes": "accurate",
+    "nNonOrtho": 0,
+    "gradLimiter": 1,
+    "timeSchemeOverride": "auto",
+    "pRelax": 0.3,
+    "uRelax": 0.7,
+    "kRelax": 0.5,
+    "pRes": "1e-12",
+    "uRes": "1e-12",
+    "kRes": "1e-4",
+    "pSolver": "GAMG",
+    "uSolver": "smoothSolver",
+    "nOuter": 1,
+    "nCorr": 2,
+    "nProcs": 1,
+    "decompMethod": "scotch",
+    "nx": 2,
+    "ny": 2,
+    "nz": 1,
+    "nu1": 1e-06,
+    "rho1": 1000,
+    "nu2": 1.5e-05,
+    "rho2": 1.225,
+    "sigma": 0.07,
+    "reactingPreset": "methane",
+    "combustionModel": "PaSR",
+    "customSpecies": "Ydefault",
+    "species": [
+      "CH4",
+      "O2",
+      "N2",
+      "CO2",
+      "H2O"
+    ],
+    "speciesWeights": {
+      "CH4": 16.04,
+      "O2": 32,
+      "N2": 28.01,
+      "CO2": 44.01,
+      "H2O": 18.02,
+      "Ydefault": 28.96
+    },
+    "limitTemp": true,
+    "minTemp": 200,
+    "maxTemp": 3000,
+    "fvOptions": [],
+    "turboPerf": false,
+    "planeStress": false
+  }
+}

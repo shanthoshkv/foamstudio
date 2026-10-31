@@ -104,7 +104,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           FOAMSTUDIO_HEADLESS: "1"
-        run: python -m pytest
+        run: python -m pytest --cov --cov-report=term
       - name: Launch offscreen
         env:
           QT_QPA_PLATFORM: offscreen
@@ -112,6 +112,18 @@ jobs:
         run: python -m foamstudio --self-test
       - name: Licence audit
         run: python scripts/license_audit.py --check --write THIRD_PARTY_LICENSES.txt
+      - name: Dependency CVE audit
+        run: python -m pip_audit --skip-editable --progress-spinner off
+      - name: SBOM (CycloneDX)
+        if: runner.os == 'Linux'
+        run: python -m cyclonedx_py environment --of JSON -o sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: sbom
+          path: |
+            sbom.cdx.json
+            THIRD_PARTY_LICENSES.txt
 
   runtime:
     name: runtime (linux)

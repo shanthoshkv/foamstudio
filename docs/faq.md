@@ -24,6 +24,14 @@ That is the offscreen and headless path. Set `FOAMSTUDIO_VIEWER=1` on a machine 
 
 `py -3` on this development machine can be `3.13t`. PySide6 publishes no wheel for that build. Create the virtualenv with `py -3.12`.
 
+## Can my company use FoamStudio?
+
+FoamStudio is GPL-3.0-only. Installing and running it inside a company, including on proprietary projects, places no obligation on your cases, meshes, or results. The GPL applies when you distribute FoamStudio itself, modified or not, outside your organisation: then you must offer the source of what you ship. OpenFOAM, Gmsh, and ParaView are separate programs that FoamStudio runs as external processes. Each keeps its own licence. This is not legal advice; ask your legal team for a formal review.
+
+## Security, SBOM, and offline use
+
+See `SECURITY.md`. CI produces a CycloneDX SBOM and runs `pip-audit` and CodeQL. FoamStudio makes no network calls by default, so it works on an air-gapped machine once it and OpenFOAM are installed.
+
 ## Where are the solver dictionaries?
 
 In `openfoam_case_generator.html`. `foamlib` may read an existing field file. It is not used to write those dictionaries.

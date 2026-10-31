@@ -1,0 +1,34 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      sampleDict;
+}
+// Sampling lines. This is not a solver dictionary.
+
+type            sets;
+libs            (sampling);
+setFormat       raw;
+interpolationScheme cellPoint;
+fields          (U);
+
+sets
+(
+    near1
+    {
+        type        uniform;
+        axis        x;
+        start       (0.0005 -0.0124 0.00063);
+        end         (0.381 -0.0124 0.00063);
+        nPoints     381;
+    }
+    near2
+    {
+        type        uniform;
+        axis        x;
+        start       (0.0005 -0.0117 0.00063);
+        end         (0.381 -0.0117 0.00063);
+        nPoints     381;
+    }
+);

@@ -733,7 +733,6 @@ class MainWindow(QMainWindow):
             ParaViewFailure,
             pvpython_script,
             write_foam,
-            write_state,
         )
 
         if self._project is None:
@@ -743,15 +742,19 @@ class MainWindow(QMainWindow):
         case = self._project.case_dir
         try:
             foam = write_foam(case)
-            state = write_state(foam, case / f"{case.name}.pvsm")
         except ParaViewFailure as exc:
             logger.error("%s", exc)
             return
+        state = case / f"{case.name}.pvsm"
         script = case / "pvpython_export.py"
+        runtime = self._store.load_runtime()
+        wsl = runtime is not None and runtime.kind == "wsl"
         script.write_text(
-            pvpython_script(foam, case / "report.png"), encoding="utf-8", newline="\n"
+            pvpython_script(foam, case / "report.png", state, wsl=wsl),
+            encoding="utf-8",
+            newline="\n",
         )
-        logger.info("Wrote %s and %s", state, script)
+        logger.info("Wrote %s; run it with pvpython to create %s", script, state)
         self.statusBar().showMessage(self.tr("ParaView state written"))
 
     def _show_report_panel(self) -> None:
