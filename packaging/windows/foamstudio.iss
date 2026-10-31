@@ -23,6 +23,9 @@ ArchitecturesInstallIn64BitMode=x64compatible
 LicenseFile=..\..\LICENSE
 UninstallDisplayIcon={app}\{#MyAppExeName}
 WizardStyle=modern
+; IT deployment: per-user by default; /ALLUSERS for per-machine; /VERYSILENT /SUPPRESSMSGBOXES for silent
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog commandline
 
 [Files]
 Source: "..\..\dist\foamstudio\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

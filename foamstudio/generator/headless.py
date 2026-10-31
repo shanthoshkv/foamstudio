@@ -245,7 +245,8 @@ def _case_name_from_output(files: dict[str, str]) -> str | None:
 
 
 def _apply_argv(spec_path: Path, *, case_name: str | None) -> list[str]:
-    argv = _node_argv("--apply-spec", str(spec_path))
+    # absolute: node runs with cwd at the generator, not the user's shell directory
+    argv = _node_argv("--apply-spec", str(spec_path.resolve()))
     if case_name is not None:
         argv.extend(["--name", case_name])
     return argv

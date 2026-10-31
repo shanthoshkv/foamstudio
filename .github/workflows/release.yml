@@ -1,0 +1,114 @@
+# Release bundles: PyInstaller one-folder on 3 OS, frozen-exe smoke test, Inno installer on Windows,
+# unsigned dmg on macOS, tar.gz on Linux. SHA256SUMS + build provenance attestation.
+# Signing (Authenticode, notarisation) is not wired: no certificate yet. See packaging/README.md.
+# PyInstaller is installed only in this job; it is not a FoamStudio dependency.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  bundle:
+    name: bundle (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Qt libraries (Linux offscreen)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libdbus-1-3 libxkbcommon0 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 \
+            libxcb-xinerama0 libfontconfig1 libnss3 libxcomposite1 \
+            libxdamage1 libxrandr2 libxi6 libxtst6 libglib2.0-0t64
+      - name: Build one-folder bundle
+        run: |
+          python -m pip install -U pip
+          python -m pip install . "pyinstaller>=6.10"
+          python -m PyInstaller --noconfirm --log-level WARN packaging/foamstudio.spec
+      - name: Smoke test frozen app
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          FOAMSTUDIO_HEADLESS: "1"
+        run: |
+          exe=dist/foamstudio/foamstudio
+          [ "$RUNNER_OS" = "Windows" ] && exe=$exe.exe
+          export FOAMSTUDIO_STATE_DIR="$RUNNER_TEMP/state"
+          "$exe" --version
+          "$exe" --self-test
+          "$exe" --write-case samples/cavity/case.json --project "$RUNNER_TEMP/wc"
+          test -f "$RUNNER_TEMP/wc/case/system/controlDict"
+      - name: Windows installer (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) { choco install innosetup -y --no-progress }
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" }
+          & $iscc packaging\windows\foamstudio.iss
+          Move-Item packaging\dist-installer\*.exe dist\
+      - name: macOS dmg (unsigned)
+        if: runner.os == 'macOS'
+        run: sh packaging/macos/make-dmg.sh
+      - name: Linux tarball
+        if: runner.os == 'Linux'
+        run: tar -C dist -czf dist/FoamStudio-linux-x86_64.tar.gz foamstudio
+      - name: Checksums
+        shell: bash
+        run: |
+          cd dist
+          shopt -s nullglob
+          files=(*.exe *.dmg *.tar.gz)
+          if command -v sha256sum >/dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
+          $sum "${files[@]}" > "SHA256SUMS-$RUNNER_OS.txt"
+          cat "SHA256SUMS-$RUNNER_OS.txt"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ runner.os }}
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.tar.gz
+            dist/SHA256SUMS-*.txt
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: bundle
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" out/* --draft --repo "$GITHUB_REPOSITORY" --title "FoamStudio ${GITHUB_REF_NAME}" --notes "Unsigned build. See SHA256SUMS and the build provenance attestation."
