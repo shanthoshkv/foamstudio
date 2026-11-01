@@ -2,7 +2,7 @@
 
 Chord 1, leading edge at the origin, far field radius 50 c centred on the trailing edge,
 wake to x = 51. Closed trailing edge (-0.1036 coefficient). Patches: airfoil (wall),
-inlet (C arc and far-field lines, freestream role), outlet (wake exit), frontAndBack (empty,
+inlet (C arc and far-field lines, fixed velocity), outlet (wake exit), frontAndBack (empty,
 z = 0 and 1, so Aref = 1).
 
 A wall layer is built from the surface normal offset (0.004 c thick at the LE, 0.02 c at the
@@ -283,7 +283,7 @@ def airfoil_spec(code: str, alpha_deg: float, reynolds: float) -> dict[str, Any]
     spec["caseName"] = f"naca{code}-a{alpha_deg:g}"
     state["nu"] = nu
     for patch in state["patches"]:
-        if patch["role"] == "freestream":
+        if patch["role"] == "inlet":
             patch["fields"]["U"].update(Ux=math.cos(a), Uy=math.sin(a), Uz=0)
             patch["fields"]["nuTilda"]["value"] = 3 * nu
     return spec

@@ -77,6 +77,6 @@ def test_airfoil() -> None:
     text = c_mesh("0012", 4e-6, 0.5)
     assert text.count("hex (") == 12 and "airfoil" in text
     spec = airfoil_spec("0012", 10, 3e6)
-    far = next(p for p in spec["state"]["patches"] if p["role"] == "freestream")
+    far = next(p for p in spec["state"]["patches"] if p["role"] == "inlet")
     assert far["fields"]["U"]["Uy"] == pytest.approx(0.17364817766693)
     assert spec["state"]["nu"] == pytest.approx(1 / 3e6) and spec["state"]["forces"]

@@ -26,16 +26,16 @@
       },
       {
         "name": "inlet",
-        "role": "freestream",
+        "role": "inlet",
         "fields": {
           "U": {
-            "type": "freestreamVelocity",
+            "type": "fixedValue",
             "Ux": 1.0,
             "Uy": 0.0,
             "Uz": 0
           },
           "nuTilda": {
-            "type": "inletOutlet",
+            "type": "fixedValue",
             "value": 5e-07
           }
         }

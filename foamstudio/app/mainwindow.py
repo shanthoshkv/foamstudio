@@ -383,7 +383,7 @@ class MainWindow(QMainWindow):
     def create_airfoil(
         self, root: Path, code: str, alpha: float, reynolds: float
     ) -> Project | None:
-        """NACA C-mesh, Spalart-Allmaras, freestream far field, live Cl/Cd and a Cd/Cl stop."""
+        """NACA C-mesh, Spalart-Allmaras, fixed-U far field, live Cl/Cd and a Cd/Cl stop."""
         from foamstudio.core import runinfo
         from foamstudio.generator.write_case import write_airfoil
 

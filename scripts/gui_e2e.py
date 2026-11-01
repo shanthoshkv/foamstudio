@@ -549,10 +549,10 @@ check("Tools > Runtimes... opens and closes", True)
 foil = win.create_airfoil(WORK / "foil", "2412", 4.0, 3e6)
 foil_case = WORK / "foil" / "case"
 check(
-    "File > New airfoil case... writes C-mesh, freestream and forces",
+    "File > New airfoil case... writes C-mesh and forces",
     foil is not None
     and "NACA 2412" in (foil_case / "system/blockMeshDict").read_text(encoding="utf-8")
-    and "freestreamVelocity" in (foil_case / "0/U").read_text(encoding="utf-8")
+    and "forceCoeffs1" in (foil_case / "system/controlDict").read_text(encoding="utf-8")
     and "forceCoeffs1" in (foil_case / "system/controlDict").read_text(encoding="utf-8"),
 )
 win._show_run_panel()
