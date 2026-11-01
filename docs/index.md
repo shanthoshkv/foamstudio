@@ -2,7 +2,7 @@
 
 FoamStudio is a desktop GUI for an OpenFOAM workflow. It detects a runtime and runs it as an external process. The HTML file `openfoam_case_generator.html` is the only writer of solver dictionaries.
 
-OpenFOAM is not bundled and is not linked. FoamStudio is GPL-3.0-only.
+OpenFOAM is not bundled and is not linked. FoamStudio is proprietary subscription software (versions before 1 November 2026 were GPL-3.0-only).
 
 ## What is in 0.9.0
 

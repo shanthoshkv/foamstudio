@@ -57,7 +57,7 @@ def test_fields_ascii_and_count(tmp_path: Path) -> None:
     scalar.write_text("internalField uniform 1.5;\n", encoding="utf-8")
     field = read_field(scalar)
     assert field.values == (1.5,)
-    assert field.source in {"ascii", "foamlib"}
+    assert field.source == "ascii"
     vector = parse_internal_field("internalField uniform (1 2 3);")
     assert vector.kind == "vector"
     assert vector.values == (1.0, 2.0, 3.0)

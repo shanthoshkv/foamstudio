@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generator": "2.2.4",
+  "generator": "2.3.0",
   "openfoamVersion": 2412,
   "caseName": "naca0012-a0",
   "state": {
@@ -26,16 +26,16 @@
       },
       {
         "name": "inlet",
-        "role": "inlet",
+        "role": "freestream",
         "fields": {
           "U": {
-            "type": "fixedValue",
+            "type": "freestreamVelocity",
             "Ux": 1.0,
             "Uy": 0.0,
             "Uz": 0
           },
           "nuTilda": {
-            "type": "fixedValue",
+            "type": "inletOutlet",
             "value": 5e-07
           }
         }
@@ -53,9 +53,9 @@
     ],
     "control": {
       "startTime": 0,
-      "endTime": 3000,
+      "endTime": 10000,
       "deltaT": 1,
-      "writeInterval": 3000,
+      "writeInterval": 10000,
       "writeControl": "timeStep",
       "purgeWrite": 0,
       "maxCo": 0.5,
@@ -109,6 +109,15 @@
     "fvOptions": [],
     "turboPerf": false,
     "planeStress": false,
-    "potentialInit": true
+    "potentialInit": true,
+    "forces": {
+      "lRef": 1,
+      "Aref": 1,
+      "CofR": [
+        0.25,
+        0,
+        0
+      ]
+    }
   }
 }

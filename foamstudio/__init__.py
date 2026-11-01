@@ -2,7 +2,7 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
-APP_LICENSE = "GPL-3.0-only"
+APP_LICENSE = "LicenseRef-FoamStudio-Proprietary"
 
 try:
     __version__ = version("foamstudio")

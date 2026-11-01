@@ -17,6 +17,36 @@ class ResidualPlot(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self.summary)
         self._plot: QWidget | None = None
+        self._coeff_plot: QWidget | None = None
+        self.coeffs = QLabel("")
+        self.coeffs.setObjectName("coefficientSummary")
+        layout.addWidget(self.coeffs)
+
+    def set_coefficients(self, columns: dict[str, list[float]]) -> None:
+        """Live Cd/Cl from forceCoeffs1, a convergence monitor next to the residuals."""
+        time = columns.get("Time", [])
+        wanted = [name for name in ("Cd", "Cl") if columns.get(name)]
+        if not time or not wanted:
+            return
+        self.coeffs.setText(
+            "  ".join(f"{name} {columns[name][-1]:.5g}" for name in wanted)
+            + f"  (t = {time[-1]:g})"
+        )
+        try:
+            import pyqtgraph as pg
+
+            if self._coeff_plot is None:
+                plot = pg.PlotWidget()
+                plot.setObjectName("coefficientGraph")
+                plot.addLegend()
+                self.layout().addWidget(plot)
+                self._coeff_plot = plot
+            assert isinstance(self._coeff_plot, pg.PlotWidget)
+            self._coeff_plot.clear()
+            for index, name in enumerate(wanted):
+                self._coeff_plot.plot(time, columns[name], name=name, pen=pg.intColor(index))
+        except Exception as exc:
+            self.coeffs.setText(self.coeffs.text() + f"\nThe coefficient plot failed: {exc}")
 
     def set_samples(self, samples: list[ResidualSample]) -> None:
         if not samples:

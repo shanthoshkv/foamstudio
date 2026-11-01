@@ -57,6 +57,17 @@ def _parser() -> argparse.ArgumentParser:
         choices=("box", "channel", "wedge"),
         help="Write case/system/blockMeshDict into --project.",
     )
+    parser.add_argument(
+        "--airfoil",
+        metavar="NACA",
+        help="Write a NACA 4-digit C-mesh case (e.g. 0012) into --project; see --alpha, --re.",
+    )
+    parser.add_argument("--alpha", type=float, default=0.0, help="Angle of attack, degrees.")
+    parser.add_argument("--re", type=float, default=6e6, help="Chord Reynolds number.")
+    parser.add_argument(
+        "--mesh-scale", type=float, default=1.0, help="Cell-count multiplier per direction."
+    )
+    parser.add_argument("--processes", type=int, default=1, help="MPI ranks for the case.")
     parser.add_argument("--report", metavar="HTML", help="Write an HTML report.")
     parser.add_argument(
         "--run-case",
@@ -155,9 +166,39 @@ def _write_case_cli(spec_path: Path, project_dir: Path) -> int:
     return 0
 
 
+def _airfoil_cli(parsed: argparse.Namespace) -> int:
+    from foamstudio.core.project import ProjectError, create_project, open_project
+    from foamstudio.core.spec import SpecError
+    from foamstudio.generator.headless import GeneratorFailure
+    from foamstudio.generator.write_case import write_airfoil
+
+    project_dir = Path(parsed.project)
+    try:
+        if (project_dir / "foamstudio.json").is_file():
+            project = open_project(project_dir)
+        else:
+            project = create_project(project_dir, app_version=__version__)
+        paths, command = write_airfoil(
+            project,
+            parsed.airfoil,
+            parsed.alpha,
+            parsed.re,
+            app_version=__version__,
+            scale=parsed.mesh_scale,
+            processes=parsed.processes,
+        )
+    except (OSError, ValueError, SpecError, ProjectError, GeneratorFailure) as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    print(f"Wrote {len(paths)} files into {project.case_dir}")
+    print(command)
+    return 0
+
+
 def _needs_project(parsed: argparse.Namespace) -> bool:
     return bool(
         parsed.write_case
+        or parsed.airfoil
         or parsed.import_geometry
         or parsed.block_mesh
         or parsed.report
@@ -184,6 +225,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if parsed.write_case:
         code = _write_case_cli(Path(parsed.write_case), Path(parsed.project))
+        if code != 0:
+            return code
+    if parsed.airfoil:
+        code = _airfoil_cli(parsed)
         if code != 0:
             return code
     if parsed.import_geometry:

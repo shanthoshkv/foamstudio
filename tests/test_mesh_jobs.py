@@ -155,7 +155,13 @@ def test_wsl_cancel_uses_linux_pgid_and_resume(tmp_path: Path) -> None:
     argv = queue.cancel()
     assert argv is not None and argv[-1] == "kill -- -576"
     job = JobQueue(bind(_WSL, _Probe()), tmp_path).add_resume("simpleFoam")
-    assert "startFrom -set latestTime && simpleFoam" in job.command
+    assert "startFrom -set latestTime && { simpleFoam ;" in job.command
+    job = JobQueue(bind(_WSL, _Probe()), tmp_path).add_resume(
+        "simpleFoam", parallel=4, end_time="9000"
+    )
+    assert "-entry endTime -set 9000 && { mpirun -np 4 simpleFoam -parallel" in job.command
+    with pytest.raises(ValueError):
+        JobQueue(bind(_WSL, _Probe()), tmp_path).add_resume("simpleFoam", end_time="9; rm -rf")
 
 
 def test_windows_process_tree_kill() -> None:

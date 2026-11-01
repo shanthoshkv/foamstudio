@@ -5833,7 +5833,7 @@ ${location ? `    location    "${location}";\n` : ''}    object      ${objectNam
     }
 
     // ─── CASE SPEC (single source of truth; deterministic — no timestamps) ───
-    const GEN_VERSION = '2.2.4';
+    const GEN_VERSION = '2.3.0';
     const SPEC_SCHEMA = 1;
     function caseSpec() {
       const st = JSON.parse(JSON.stringify(STATE));
@@ -5907,6 +5907,7 @@ ${location ? `    location    "${location}";\n` : ''}    object      ${objectNam
       add(`type            ${t};`);
       if (NO_VALUE_BC.includes(t)) return;
       if (t === 'inletOutlet') { add(`inletValue      uniform ${v};`); }
+      else if (t === 'freestreamVelocity' || t === 'freestreamPressure') { add(`freestreamValue uniform ${v};`); }
       else if (t === 'uniformFixedValue') { add(`uniformValue    constant ${v};`); }
       else if (t === 'SRFVelocity') { add(`inletValue      uniform ${v};`); add(`relative        no;`); }
       else if (t === 'SRFFreestreamVelocity') { add(`UInf            ${v};`); }
@@ -6613,6 +6614,7 @@ ${location ? `    location    "${location}";\n` : ''}    object      ${objectNam
       if (fam === 'scalar' && isFnd(11)) fo.push(`    #includeFunc scalarTransport(T, diffusivity=constant, D=${STATE.scalarDT || 0.01})\n`);
       if (STATE.turboPerf && !isCHT() && !hasNoFlow()) fo.push(genTurboFunctions());
       if (wantsYPlus()) fo.push(isESI() ? `    yPlus\n    {\n        type            yPlus;\n        libs            (fieldFunctionObjects);\n        writeControl    writeTime;\n    }\n` : `    #includeFunc yPlus\n`);
+      if (wantsForces()) fo.push(genForceCoeffs());
       if (wantsConvStop()) fo.push(genConvStop());
       return fo.length ? `\nfunctions\n{\n${fo.join('\n')}}\n` : '';
     }
@@ -6620,8 +6622,27 @@ ${location ? `    location    "${location}";\n` : ''}    object      ${objectNam
     function wantsYPlus() { return effTurbModel() !== 'laminar' && !isCHT() && !hasNoFlow() && STATE.patches.some(p => p.role === 'wall'); }
     // Integral-quantity convergence stop (ESI runTimeControl): steady runs end when the inlet-averaged
     // pressure stops changing, not only when residuals drop. Foundation relies on residualControl.
-    function wantsConvStop() { return isESI() && !isTransient() && !hasNoFlow() && !isCHT() && STATE.convStop !== false && !!STATE.patches.find(p => p.role === 'inlet'); }
+    function wantsConvStop() { return isESI() && !isTransient() && !hasNoFlow() && !isCHT() && STATE.convStop !== false && (wantsForces() || !!STATE.patches.find(p => p.role === 'inlet')); }
+    // Lift/drag coefficients on wall patches (STATE.forces: {patches?, lRef, Aref, CofR?}). Drag along the
+    // inflow velocity, lift normal to it in the x-y plane.
+    function wantsForces() { return !!STATE.forces && !isCHT() && !hasNoFlow() && STATE.patches.some(p => p.role === 'wall'); }
+    function forceDirs() {
+      const src = STATE.patches.find(p => ['inlet', 'freestream'].includes(p.role) && p.fields && p.fields[Ufield()]);
+      const u = src ? src.fields[Ufield()] : { Ux: 1, Uy: 0, Uz: 0 };
+      const ux = +u.Ux || 0, uy = +u.Uy || 0, uz = +u.Uz || 0, m = Math.hypot(ux, uy, uz) || 1;
+      return { mag: m, drag: [ux / m, uy / m, uz / m], lift: [-uy / m, ux / m, 0] };
+    }
+    function genForceCoeffs() {
+      const f = STATE.forces, d = forceDirs(), v = a => `(${a.map(fmtV).join(' ')})`;
+      const walls = f.patches || STATE.patches.filter(p => p.role === 'wall').map(p => p.name);
+      const comp = needsTemp();
+      return `    forceCoeffs1\n    {\n        type            forceCoeffs;\n        libs            ("libforces.so");\n        writeControl    timeStep;\n        writeInterval   1;\n        log             yes;\n        patches         (${walls.join(' ')});\n        rho             ${comp ? 'rho' : 'rhoInf'};\n        rhoInf          ${comp ? fmtV(STATE.rho) : 1};\n        CofR            ${f.CofR ? v(f.CofR) : '(0 0 0)'};\n        liftDir         ${v(d.lift)};\n        dragDir         ${v(d.drag)};\n        pitchAxis       (0 0 1);\n        magUInf         ${fmtV(d.mag)};\n        lRef            ${fmtV(f.lRef || 1)};\n        Aref            ${fmtV(f.Aref || 1)};\n    }\n`;
+    }
     function genConvStop() {
+      if (wantsForces()) {
+        // End when Cd and Cl stop changing: a fixed iteration count either wastes hours or stops early.
+        return `    coeffStop\n    {\n        type            runTimeControl;\n        libs            (utilityFunctionObjects);\n        conditions\n        {\n            coefficients\n            {\n                type            average;\n                functionObject  forceCoeffs1;\n                fields          (Cd Cl);\n                tolerance       ${STATE.convTol || 1e-5};\n                window          ${STATE.convWindow || 200};\n                windowType      approximate;\n            }\n        }\n        satisfiedAction end;\n    }\n`;
+      }
       const inlet = STATE.patches.find(p => p.role === 'inlet').name;
       const pf = usesPRgh() ? 'p_rgh' : 'p';
       return `    convMonitor\n    {\n        type            surfaceFieldValue;\n        libs            (fieldFunctionObjects);\n        writeControl    timeStep;\n        writeFields     false;\n        log             false;\n        regionType      patch;\n        name            ${inlet};\n        operation       areaAverage;\n        fields          (${pf});\n    }\n\n    convStop\n    {\n        type            runTimeControl;\n        libs            (utilityFunctionObjects);\n        conditions\n        {\n            inletPressure\n            {\n                type            average;\n                functionObject  convMonitor;\n                fields          (areaAverage(${pf}));\n                tolerance       ${STATE.convTol || 1e-4};\n                window          ${STATE.convWindow || 50};\n                windowType      approximate;\n            }\n        }\n        satisfiedAction end;\n    }\n`;
@@ -6861,7 +6882,6 @@ if pin and pout and len(pin) >= 5 and len(pout) >= 5:
       const fam = kind === 'solid' ? 'chtSolid' : solverFam();
       const tr = isTransient();
       const preset = STATE.schemes;
-      const gl = STATE.gradLimiter;
       const b = tr ? '' : 'bounded ';
       const fndVoF = isFnd(8);
       const Uf = Ufield();
@@ -6873,10 +6893,8 @@ if pin and pout and len(pin) >= 5 and len(pout) >= 5:
 
       let ddt = tr ? getTimeScheme() : 'steadyState';
       let grad = `    default         Gauss linear;\n`;
-      if (preset === 'accurate' && !['chtSolid', 'solid', 'pot'].includes(fam)) {
-        grad += `    limited         cellLimited Gauss linear ${gl};\n    grad(${Uf})         $limited;\n`;
-        turbScalars().forEach(f => { grad += `    grad(${f})${' '.repeat(Math.max(1, 10 - f.length))}$limited;\n`; });
-      }
+      // 'accurate' keeps gradients unlimited: cellLimited grad(U) thickened NACA 0012 boundary layers
+      // (alpha 10: Cl 1.118 limited vs 1.071 unlimited, TMR SA 1.09). Robust cases use upwind anyway.
       let div = '    default         none;\n';
       let interp = '    default         linear;\n';
       let pre = '';
@@ -7105,7 +7123,8 @@ fi
       s += `\nrunApplication checkMesh\n`;
       s += `
 # ── Mesh quality gate (FORCE=1 ./Allrun to override) ──
-if grep -q "Failed [0-9]* mesh checks" log.checkMesh && [ -z "$FORCE" ]
+# High aspect ratio alone does not block: wall-resolved (y+ ~ 1) meshes always trip it.
+if grep '\\*\\*\\*' log.checkMesh | grep -qv 'aspect ratio' && [ -z "$FORCE" ]
 then
     echo "checkMesh reported failed checks (see log.checkMesh). Fix the mesh or run: FORCE=1 ./Allrun"
     exit 1
@@ -8844,7 +8863,9 @@ ${files.join('\n')}
         'outlet': { U: 'inletOutlet', p: 'fixedValue', p_rgh: 'fixedValue', k: 'inletOutlet', epsilon: 'inletOutlet', omega: 'inletOutlet', nut: 'calculated', nuTilda: 'zeroGradient', T: 'inletOutlet', alphat: 'calculated', 'alpha.water': 'inletOutlet' },
         'wall': { U: 'noSlip', p: 'zeroGradient', p_rgh: isBuoyant ? 'fixedFluxPressure' : 'zeroGradient', k: isHighRe ? 'kqRWallFunction' : 'kLowReWallFunction', epsilon: isHighRe ? 'epsilonWallFunction' : 'epsilonLowReWallFunction', omega: isHighRe ? 'omegaWallFunction' : 'omegaLowReWallFunction', nut: isHighRe ? 'nutkWallFunction' : 'nutLowReWallFunction', nuTilda: 'fixedValue', T: 'zeroGradient', alphat: 'alphatJayatillekeWallFunction', 'alpha.water': 'zeroGradient' },
         'symmetry': { U: 'symmetryPlane', p: 'symmetryPlane', p_rgh: 'symmetryPlane', k: 'symmetryPlane', epsilon: 'symmetryPlane', omega: 'symmetryPlane', nut: 'symmetryPlane', nuTilda: 'symmetryPlane', T: 'symmetryPlane', alphat: 'symmetryPlane', 'alpha.water': 'symmetryPlane' },
-        'freestream': { U: 'inletOutlet', p: 'inletOutlet', p_rgh: 'totalPressure', k: 'inletOutlet', epsilon: 'inletOutlet', omega: 'inletOutlet', nut: 'calculated', nuTilda: 'inletOutlet', T: 'inletOutlet', alphat: 'calculated', 'alpha.water': 'inletOutlet' },
+        // freestreamVelocity/freestreamPressure switch between fixed value and zero gradient per face
+        // with the flux direction, as a pair, so inflow is not over-specified (inletOutlet on both is).
+        'freestream': { U: 'freestreamVelocity', p: 'freestreamPressure', p_rgh: 'totalPressure', k: 'inletOutlet', epsilon: 'inletOutlet', omega: 'inletOutlet', nut: 'calculated', nuTilda: 'inletOutlet', T: 'inletOutlet', alphat: 'calculated', 'alpha.water': 'inletOutlet' },
         'atm': { U: 'atmBoundaryLayerInletVelocity', p: 'zeroGradient', p_rgh: 'fixedFluxPressure', k: 'atmBoundaryLayerInletK', epsilon: 'atmBoundaryLayerInletEpsilon', omega: 'atmBoundaryLayerInletOmega', nut: 'nutkAtmRoughWallFunction', nuTilda: 'fixedValue', T: 'fixedValue', alphat: 'calculated', 'alpha.water': 'zeroGradient' },
         'cyclic': { U: 'cyclic', p: 'cyclic', p_rgh: 'cyclic', k: 'cyclic', epsilon: 'cyclic', omega: 'cyclic', nut: 'cyclic', nuTilda: 'cyclic', T: 'cyclic', alphat: 'cyclic', 'alpha.water': 'cyclic' },
         'cyclicAMI': { U: 'cyclicAMI', p: 'cyclicAMI', p_rgh: 'cyclicAMI', k: 'cyclicAMI', epsilon: 'cyclicAMI', omega: 'cyclicAMI', nut: 'cyclicAMI', nuTilda: 'cyclicAMI', T: 'cyclicAMI', alphat: 'cyclicAMI', 'alpha.water': 'cyclicAMI' },
@@ -8905,8 +8926,8 @@ ${files.join('\n')}
           T: ['symmetryPlane'], alphat: ['symmetryPlane'], 'alpha.water': ['symmetryPlane']
         },
         'freestream': {
-          U: ['inletOutlet', 'fixedValue', 'atmBoundaryLayerInletVelocity'],
-          p: ['inletOutlet', 'fixedValue', 'totalPressure'],
+          U: ['freestreamVelocity', 'inletOutlet', 'fixedValue', 'atmBoundaryLayerInletVelocity'],
+          p: ['freestreamPressure', 'inletOutlet', 'fixedValue', 'totalPressure'],
           p_rgh: ['totalPressure', 'fixedValue'],
           k: ['inletOutlet', 'fixedValue', 'atmBoundaryLayerInletK'],
           epsilon: ['inletOutlet', 'fixedValue', 'atmBoundaryLayerInletEpsilon'],

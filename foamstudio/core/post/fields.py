@@ -1,4 +1,4 @@
-"""Read OpenFOAM fields. foamlib is optional and is never used to write solver dictionaries."""
+"""Read OpenFOAM ASCII fields. Solver dictionaries are written only by the generator."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def parse_internal_field(text: str, *, source: str = "ascii") -> InternalField:
         if len(numbers) != count and kind == "scalar":
             raise ValueError(
                 f"internalField declares {count} values but {len(numbers)} were read.\n\n"
-                "Rewrite the field as ASCII, or open it with foamlib after fixing the file."
+                "Rewrite the field as ASCII (foamFormatConvert) and read it again."
             )
         return InternalField(kind, numbers, source)
     raise ValueError(
@@ -51,23 +51,4 @@ def parse_internal_field(text: str, *, source: str = "ascii") -> InternalField:
 
 
 def read_field(path: Path) -> InternalField:
-    text = path.read_text(encoding="utf-8", errors="replace")
-    parsed = parse_internal_field(text, source="ascii")
-    foamlib_text = _foamlib_internal(path)
-    if foamlib_text is None:
-        return parsed
-    return InternalField(parsed.kind, parsed.values, "foamlib")
-
-
-def _foamlib_internal(path: Path) -> str | None:
-    """Confirm foamlib can open the file. The ASCII parser remains the value source."""
-    try:
-        from foamlib import FoamFile
-    except ImportError:
-        return None
-    try:
-        opened = FoamFile(path)
-        value = opened["internalField"]
-    except Exception:
-        return None
-    return str(value)
+    return parse_internal_field(path.read_text(encoding="utf-8", errors="replace"), source="ascii")

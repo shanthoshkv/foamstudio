@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 from collections.abc import Callable
 from dataclasses import replace
@@ -52,6 +53,15 @@ from foamstudio.ui.setup_panel import SetupPanel
 from foamstudio.ui.viewer3d import Viewer3D
 
 logger = logging.getLogger("foamstudio")
+
+
+def _end_time(case: Path) -> float | None:
+    control = case / "system" / "controlDict"
+    if not control.is_file():
+        return None
+    found = re.search(r"^endTime\s+([0-9.eE+-]+);", control.read_text(encoding="utf-8"), re.M)
+    return float(found.group(1)) if found else None
+
 
 _SECTIONS = ("Geometry", "Mesh", "Setup", "Run", "Results", "Reports")
 _CONSOLE_TABS = (
@@ -208,6 +218,10 @@ class MainWindow(QMainWindow):
         import_action.setObjectName("actionImportGeometry")
         import_action.triggered.connect(lambda _checked=False: self.import_geometry_dialog())
         file_menu.addAction(new_action)
+        airfoil_action = QAction(self.tr("New airfoil case..."), self)
+        airfoil_action.setObjectName("actionNewAirfoil")
+        airfoil_action.triggered.connect(lambda _checked=False: self.new_airfoil_dialog())
+        file_menu.addAction(airfoil_action)
         file_menu.addAction(open_action)
         file_menu.addAction(import_action)
         file_menu.addAction(self._write_action)
@@ -264,6 +278,10 @@ class MainWindow(QMainWindow):
         about = QAction(self.tr("About"), self)
         about.triggered.connect(self._about)
         help_menu.addAction(about)
+        licence = QAction(self.tr("Enter licence key..."), self)
+        licence.setObjectName("actionLicence")
+        licence.triggered.connect(lambda _checked=False: self.enter_licence_dialog())
+        help_menu.addAction(licence)
 
     def _theme_action(self, label: str, theme: str) -> QAction:
         action = QAction(label, self)
@@ -339,6 +357,54 @@ class MainWindow(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, self.tr("New project folder"))
         if folder:
             self.create_project(Path(folder))
+
+    def new_airfoil_dialog(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        code, ok = QInputDialog.getText(
+            self, self.tr("Airfoil"), self.tr("NACA 4-digit code"), text="0012"
+        )
+        if not ok:
+            return
+        alpha, ok = QInputDialog.getDouble(
+            self, self.tr("Airfoil"), self.tr("Angle of attack (deg)"), 0.0, -20.0, 25.0, 2
+        )
+        if not ok:
+            return
+        reynolds, ok = QInputDialog.getDouble(
+            self, self.tr("Airfoil"), self.tr("Chord Reynolds number"), 6e6, 1e4, 1e9, 0
+        )
+        if not ok:
+            return
+        folder = QFileDialog.getExistingDirectory(self, self.tr("New project folder"))
+        if folder:
+            self.create_airfoil(Path(folder), code.strip(), alpha, reynolds)
+
+    def create_airfoil(
+        self, root: Path, code: str, alpha: float, reynolds: float
+    ) -> Project | None:
+        """NACA C-mesh, Spalart-Allmaras, freestream far field, live Cl/Cd and a Cd/Cl stop."""
+        from foamstudio.core import runinfo
+        from foamstudio.generator.write_case import write_airfoil
+
+        project = self.create_project(root)
+        if project is None:
+            return None
+        try:
+            # 89,600 cells at scale 1: pick ranks from that before the mesh exists
+            procs = runinfo.suggest_processes(89_600)
+            paths, _command = write_airfoil(
+                project, code, alpha, reynolds, app_version=__version__, processes=procs
+            )
+        except Exception as exc:
+            logger.error("%s", exc)
+            self.statusBar().showMessage(str(exc).splitlines()[0])
+            return None
+        if self._run_panel is not None:
+            self._run_panel.processes.setValue(procs)
+        logger.info("NACA %s, alpha %g, Re %g: wrote %s files", code, alpha, reynolds, len(paths))
+        self.statusBar().showMessage(self.tr("Airfoil case written. Run it from the Run panel."))
+        return project
 
     def open_project_dialog(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, self.tr("Open project folder"))
@@ -639,7 +705,30 @@ class MainWindow(QMainWindow):
             self._mesh_panel.snappy_button.clicked.connect(
                 lambda _checked=False: self.write_snappy_mesh()
             )
+            self._mesh_panel.quality_button.clicked.connect(
+                lambda _checked=False: self.show_mesh_quality()
+            )
         self.properties_dock.setWidget(self._mesh_panel)
+
+    def show_mesh_quality(self) -> str:
+        """Cells checkMesh flagged (Allrun runs it; sets land in constant/polyMesh/sets)."""
+        from foamstudio.core.runinfo import bad_cells
+
+        if self._project is None:
+            logger.error("Open a project first. The mesh quality sets live in its case folder.")
+            return ""
+        sets = bad_cells(self._project.case_dir)
+        if not sets:
+            text = self.tr("No checkMesh sets. Run the case (Allrun runs checkMesh) or checkMesh.")
+        else:
+            text = "; ".join(f"{name}: {len(ids)} cells" for name, ids in sets.items())
+        view = self._viewer3d or Viewer3D(self)
+        if self._viewer3d is None:
+            self._viewer3d = view
+            self.setCentralWidget(view)
+        view.show_cells(self._project.case_dir, sets, text)
+        logger.info("Mesh quality: %s", text)
+        return text
 
     def write_block_mesh(self) -> None:
         from foamstudio.core.mesh import MeshFailure, block_mesh_dict, patch_rows
@@ -733,9 +822,42 @@ class MainWindow(QMainWindow):
             self._run_panel = RunPanel(self)
             self._run_panel.start_button.clicked.connect(lambda _checked=False: self.start_solver())
             self._run_panel.stop_button.clicked.connect(lambda _checked=False: self.stop_solver())
+            self._run_panel.continue_button.clicked.connect(
+                lambda _checked=False: self.start_solver(resume=True)
+            )
+            self._update_run_info(suggest=True)
         self.properties_dock.setWidget(self._run_panel)
 
-    def start_solver(self) -> None:
+    def _update_run_info(self, log_text: str | None = None, *, suggest: bool = False) -> None:
+        from foamstudio.core import runinfo
+
+        panel = self._run_panel
+        if panel is None or self._project is None:
+            return
+        case = self._project.case_dir
+        cells = runinfo.cell_count(case)
+        cores = runinfo.physical_cores()
+        lines = []
+        if cells:
+            best = runinfo.suggest_processes(cells, cores)
+            if suggest and panel.processes.value() == 1:
+                panel.processes.setValue(best)
+            lines.append(
+                self.tr("Mesh %1 cells, about %2 GB. Suggested processes %3 (%4 physical cores).")
+                .replace("%1", f"{cells:,}")
+                .replace("%2", f"{runinfo.memory_gb(cells):.1f}")
+                .replace("%3", str(best))
+                .replace("%4", str(cores))
+            )
+        if log_text:
+            end = _end_time(case)
+            p = runinfo.progress(log_text, end)
+            if p is not None:
+                eta = "" if p.eta_seconds is None else f", ETA {p.eta_seconds / 60:.0f} min"
+                lines.append(f"t = {p.iteration:g}, {p.per_second:.3g} /s{eta}")
+        panel.info.setText("\n".join(lines) or self.tr("No mesh yet."))
+
+    def start_solver(self, *, resume: bool = False) -> None:
         from foamstudio.core.jobs import JobQueue
         from foamstudio.core.runtime import bind
 
@@ -756,14 +878,27 @@ class MainWindow(QMainWindow):
             logger.error("No runtime is saved.\n\nTools → Runtimes... and choose an installation.")
             self.statusBar().showMessage(self.tr("No runtime is saved"))
             return
+        from foamstudio.core.licence import status
+
+        allowed, message = status()
+        if not allowed:
+            logger.error("%s", message)
+            self.statusBar().showMessage(message)
+            return
         solver = self._run_panel.solver.text().strip() or "simpleFoam"
         queue = JobQueue(bind(installation), self._project.case_dir)
         snappy = (self._project.case_dir / "system" / "snappyHexMeshDict").is_file()
-        queue.add_allrun(
-            solver,
-            parallel=self._run_panel.processes.value(),
-            mesh="snappyHexMesh" if snappy else "blockMesh",
-        )
+        if resume:
+            end = self._run_panel.end_time.text().strip()
+            queue.add_resume(
+                solver, parallel=self._run_panel.processes.value(), end_time=end or None
+            )
+        else:
+            queue.add_allrun(
+                solver,
+                parallel=self._run_panel.processes.value(),
+                mesh="snappyHexMesh" if snappy else "blockMesh",
+            )
         self._jobs = queue
         logger.info("Running %s", ", ".join(job.name for job in queue.jobs))
 
@@ -796,7 +931,9 @@ class MainWindow(QMainWindow):
         solver = self._run_panel.solver.text().strip() or "simpleFoam"
         log = self._project.case_dir / f"log.{solver}"
         if log.is_file():
-            self.show_residuals(log.read_text(encoding="utf-8", errors="replace"))
+            text = log.read_text(encoding="utf-8", errors="replace")
+            self.show_residuals(text)
+            self._update_run_info(text)
 
     def _stop_residual_timer(self) -> None:
         timer = getattr(self, "_residual_timer", None)
@@ -954,6 +1091,10 @@ class MainWindow(QMainWindow):
             self.console_tabs.insertTab(1, self._residual_plot, self.tr("Residuals"))
         snapshot = parse_solver_log(text)
         self._residual_plot.set_samples(list(snapshot.residuals))
+        if self._project is not None:
+            from foamstudio.core.runinfo import coefficients
+
+            self._residual_plot.set_coefficients(coefficients(self._project.case_dir))
 
     def raise_and_focus(self) -> None:
         self.show()
@@ -977,6 +1118,22 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(limit_message)
             return
         self._apply_model(replace(self._model, font_point_size=size), persist=True)
+
+    def enter_licence_dialog(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+
+        from foamstudio.core.licence import LicenceError, save_key
+
+        key, ok = QInputDialog.getText(self, self.tr("Licence"), self.tr("Licence key"))
+        if not ok or not key.strip():
+            return
+        try:
+            lic = save_key(key)
+        except (LicenceError, OSError, KeyError) as exc:
+            logger.error("%s", exc)
+            self.statusBar().showMessage(str(exc))
+            return
+        self.statusBar().showMessage(self.tr("Licensed to %1").replace("%1", lic.email))
 
     def _about(self) -> None:
         QMessageBox.about(

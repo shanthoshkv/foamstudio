@@ -193,3 +193,11 @@ Phase 9 lists Inno Setup or MSIX, a dmg, an AppImage, a Flatpak, signing, and a 
 
 Do not describe GitHub CI, notarisation, or the fresh-machine clock as passed until those runs exist. Docs are an MkDocs Material site under `docs/`.
 
+
+## ADR-0012: Proprietary subscription licence
+
+Status: accepted, 2026-11-01. Supersedes the GPL-3.0-only choice in ADR-0001.
+
+FoamStudio is sold as a subscription, so it cannot stay GPL-3.0-only. foamlib (GPL-3.0) was dropped; `core/post/fields.py` reads ASCII fields itself. `scripts/license_audit.py` now fails on any GPL/AGPL package in the build; LGPL (PySide6) stays allowed because it is linked dynamically. OpenFOAM, Gmsh and ParaView remain separate processes and are not distributed with FoamStudio. Earlier releases stay GPL-3.0-only for whoever received them.
+
+Licence keys are offline RSA signatures (`core/licence.py`, stdlib only), issued with `scripts/issue_licence.py`. The private key is kept outside the repository at `~/.foamstudio-signing/private.json`. Without a key the app runs a 30-day trial, then blocks solver runs and nothing else.

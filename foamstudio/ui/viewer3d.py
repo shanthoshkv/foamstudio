@@ -90,6 +90,38 @@ class Viewer3D(QWidget):
             )
         return ""
 
+    def show_cells(self, case: object, sets: dict[str, list[int]], text: str) -> None:
+        """Faint mesh with the flagged cells in red. The text summary works without PyVista."""
+        self.summary.setText(text)
+        if not sets or not viewer_enabled():
+            return
+        try:
+            from pathlib import Path
+
+            import pyvista as pv
+            from pyvistaqt import QtInteractor
+
+            marker = Path(str(case)) / "case.foam"
+            marker.touch()
+            reader = pv.OpenFOAMReader(str(marker))
+            reader.decompose_polyhedra = False  # keep OpenFOAM cell numbering
+            mesh = reader.read()["internalMesh"]
+            ids = sorted({i for cells in sets.values() for i in cells if i < mesh.n_cells})
+            if self._plot is None:
+                plot = QtInteractor(self)
+                layout = self.layout()
+                assert isinstance(layout, QVBoxLayout)
+                layout.insertWidget(1, plot, 1)
+                self._plot = plot
+            plot = self._plot
+            plot.clear()  # type: ignore[attr-defined]
+            plot.add_mesh(mesh, style="wireframe", opacity=0.08)  # type: ignore[attr-defined]
+            plot.add_mesh(mesh.extract_cells(ids), color="red")  # type: ignore[attr-defined]
+            plot.reset_camera()  # type: ignore[attr-defined]
+            self._mesh = mesh
+        except Exception as exc:
+            self.summary.setText(f"{text}\n\nThe 3D view could not load the mesh: {exc}")
+
     def show_tool(self, tool: str) -> None:
         """Interactive PyVista plane widgets: drag the plane to clip or slice the surface."""
         plot, mesh = self._plot, self._mesh

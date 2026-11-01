@@ -7,7 +7,7 @@ name = "foamstudio"
 version = "0.9.0"
 description = "Desktop GUI for the OpenFOAM workflow"
 readme = "README.md"
-license = "GPL-3.0-only"
+license = "LicenseRef-FoamStudio-Proprietary"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
 authors = [{ name = "Shanthosh K V" }]
@@ -34,7 +34,6 @@ dependencies = [
     "pyvista>=0.44",
     "pyvistaqt>=0.11",
     "pyqtgraph>=0.13",
-    "foamlib>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -65,6 +64,7 @@ foamstudio = [
     "app/theme/*.svg",
     "app/i18n/*.ts",
     "app/i18n/*.qm",
+    "core/mesh/airfoil_case.json",
 ]
 
 [tool.pytest.ini_options]
@@ -98,5 +98,5 @@ packages = ["foamstudio.core"]
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["meshio", "meshio.*", "foamlib", "foamlib.*"]
+module = ["meshio", "meshio.*"]
 ignore_missing_imports = true

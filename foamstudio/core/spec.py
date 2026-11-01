@@ -10,7 +10,7 @@ import json
 from typing import Any, cast
 
 SPEC_SCHEMA = 1
-GENERATOR_VERSION = "2.2.4"
+GENERATOR_VERSION = "2.3.0"
 
 
 class SpecError(Exception):

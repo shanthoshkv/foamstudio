@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from foamstudio.core.runinfo import explain
 from foamstudio.core.runtime.base import BoundRuntime
 from foamstudio.core.runtime.model import CommandResult, Installation, RuntimeFailure, log_tail
 from foamstudio.core.runtime.paths import JOB_PID, launch_env
@@ -51,14 +52,20 @@ class JobQueue:
             app = solver if command.startswith("mpirun") else command.split()[0]
             self.add(logged(command, app), name=app)
 
-    def add_resume(self, solver: str) -> Job:
-        """Continue from the newest time directory. OpenFOAM's foamDictionary edits controlDict."""
+    def add_resume(self, solver: str, *, parallel: int = 1, end_time: str | None = None) -> Job:
+        """Continue from the newest time directory. OpenFOAM's foamDictionary edits controlDict.
+
+        Parallel resumes reuse the processor* directories, so decomposePar is not rerun.
+        """
         if not solver.strip():
             raise ValueError("The solver name is empty.")
-        return self.add(
-            f"foamDictionary system/controlDict -entry startFrom -set latestTime && {solver}",
-            name=f"resume {solver}",
-        )
+        if end_time is not None:
+            float(end_time)  # ValueError for anything that is not a number
+        edits = "foamDictionary system/controlDict -entry startFrom -set latestTime"
+        if end_time is not None:
+            edits += f" && foamDictionary system/controlDict -entry endTime -set {end_time}"
+        run = f"mpirun -np {parallel} {solver} -parallel" if parallel > 1 else solver
+        return self.add(f"{edits} && {logged(run, solver)}", name=solver)
 
     def add_matrix(self) -> None:
         """The 225-case harness runs `./Allrun`. This is that same step."""
@@ -99,7 +106,11 @@ class JobQueue:
                 job.status = "cancelled" if self._cancel else "failed"
                 job.returncode = exc.returncode
                 job.log_tail = exc.log_tail
-                job.suggestion = exc.suggestion
+                app_log = self.case / f"log.{job.name}"
+                text = exc.log_tail
+                if app_log.is_file():
+                    text += app_log.read_text(encoding="utf-8", errors="replace")[-20_000:]
+                job.suggestion = explain(text) or exc.suggestion
                 self._cancel = True
                 continue
             job.status = "succeeded"

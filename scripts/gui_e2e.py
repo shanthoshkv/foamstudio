@@ -545,6 +545,23 @@ action("Runtimes...").trigger()
 pump()
 check("Tools > Runtimes... opens and closes", True)
 
+# ---- airfoil wizard, run info, mesh quality, licence menu ----
+foil = win.create_airfoil(WORK / "foil", "2412", 4.0, 3e6)
+foil_case = WORK / "foil" / "case"
+check(
+    "File > New airfoil case... writes C-mesh, freestream and forces",
+    foil is not None
+    and "NACA 2412" in (foil_case / "system/blockMeshDict").read_text(encoding="utf-8")
+    and "freestreamVelocity" in (foil_case / "0/U").read_text(encoding="utf-8")
+    and "forceCoeffs1" in (foil_case / "system/controlDict").read_text(encoding="utf-8"),
+)
+win._show_run_panel()
+rp = win._run_panel
+check("Run panel has Continue and run info", rp is not None and rp.continue_button.isEnabled())
+quality = win.show_mesh_quality()
+check("Mesh > Show mesh quality reports checkMesh sets", bool(quality))
+check("Help > Enter licence key... exists", action("Enter licence key...") is not None)
+
 # ---- done ----
 win.close()
 pump()
