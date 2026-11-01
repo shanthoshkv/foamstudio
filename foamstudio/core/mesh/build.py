@@ -215,6 +215,7 @@ def snappy_hex_mesh_dict(
     location: tuple[float, float, float] = (0.5, 0.5, 0.05),
 ) -> str:
     height = first_cell_height(velocity, nu, length, y_plus)
+    surface = Path(stl_name).stem  # geometry key = patch name (body.stl -> body)
     region_body = "\n".join(
         f"        {name}\n"
         "        {\n"
@@ -230,15 +231,17 @@ def snappy_hex_mesh_dict(
         "snap            true;\n"
         "addLayers       true;\n\n"
         "geometry\n{\n"
-        f"    {stl_name}\n    {{\n        type triSurfaceMesh;\n        name {stl_name};\n    }}\n"
+        f'    {surface}\n    {{\n        type triSurfaceMesh;\n        file "{stl_name}";\n    }}\n'
         "}\n\n"
         "castellatedMeshControls\n{\n"
         "    maxLocalCells 1000000;\n"
         "    maxGlobalCells 2000000;\n"
         "    minRefinementCells 0;\n"
         "    nCellsBetweenLevels 2;\n"
+        "    features\n    (\n    );\n"
+        "    resolveFeatureAngle 30;\n"
         "    refinementSurfaces\n    {\n"
-        f"        {stl_name}\n"
+        f"        {surface}\n"
         "        {\n"
         f"            level ({n_surface} {n_surface});\n"
         "        }\n"
@@ -254,11 +257,15 @@ def snappy_hex_mesh_dict(
         "    tolerance 2.0;\n"
         "    nSolveIter 30;\n"
         "    nRelaxIter 5;\n"
+        "    nFeatureSnapIter 10;\n"
+        "    implicitFeatureSnap true;\n"
+        "    explicitFeatureSnap false;\n"
+        "    multiRegionFeatureSnap false;\n"
         "}\n\n"
         "addLayersControls\n{\n"
         "    relativeSizes false;\n"
         "    layers\n    {\n"
-        f"        {stl_name}\n        {{\n            nSurfaceLayers {layers};\n        }}\n"
+        f"        {surface}\n        {{\n            nSurfaceLayers {layers};\n        }}\n"
         "    }\n"
         "    expansionRatio 1.2;\n"
         f"    firstLayerThickness {height:.8g};\n"
@@ -294,6 +301,74 @@ def snappy_hex_mesh_dict(
         "mergeTolerance 1e-6;\n"
     )
     return foam_dictionary("snappyHexMeshDict", body)
+
+
+def background_box(
+    low: tuple[float, float, float],
+    high: tuple[float, float, float],
+    cells: tuple[int, int, int],
+) -> str:
+    """blockMeshDict for a snappyHexMesh background box: inlet at x-min, outlet at x-max,
+    symmetry planes on the four sides (external flow)."""
+    (x0, y0, z0), (x1, y1, z1) = low, high
+    if not (x1 > x0 and y1 > y0 and z1 > z0):
+        raise MeshFailure(
+            f"Background box {low} - {high} has no volume.",
+            suggestion="Import a 3D surface; flat or empty geometry cannot be meshed.",
+        )
+    corners = [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0)]
+    corners += [(x, y, z1) for x, y, _ in corners]
+    vertices = "\n".join(f"    ({x!r} {y!r} {z!r})" for x, y, z in corners)
+    nx, ny, nz = cells
+    patches = "\n".join(
+        _patch(name, kind, face)
+        for name, kind, face in (
+            ("inlet", "patch", "(0 4 7 3)"),
+            ("outlet", "patch", "(1 2 6 5)"),
+            ("yMin", "symmetryPlane", "(0 1 5 4)"),
+            ("yMax", "symmetryPlane", "(3 7 6 2)"),
+            ("zMin", "symmetryPlane", "(0 3 2 1)"),
+            ("zMax", "symmetryPlane", "(4 5 6 7)"),
+        )
+    )
+    body = (
+        "scale 1;\n\n"
+        f"vertices\n(\n{vertices}\n);\n\n"
+        f"blocks\n(\n    hex (0 1 2 3 4 5 6 7) ({nx} {ny} {nz}) simpleGrading (1 1 1)\n);\n\n"
+        "edges\n(\n);\n\n"
+        f"boundary\n(\n{patches}\n);\n"
+    )
+    return foam_dictionary("blockMeshDict", body)
+
+
+def snappy_around(
+    points: list[tuple[float, float, float]], stl_name: str, *, cells_per_size: int = 8
+) -> tuple[str, str, list[dict[str, str]]]:
+    """Background box (3 D upstream, 6 D downstream, 3 D sideways), snappyHexMeshDict, and
+    generator patch rows for external flow around the surface in `points`."""
+    if not points:
+        raise MeshFailure("The surface has no points.", suggestion="Import a closed surface.")
+    lo = [min(p[i] for p in points) for i in range(3)]
+    hi = [max(p[i] for p in points) for i in range(3)]
+    size = max(b - a for a, b in zip(lo, hi, strict=True))
+    if size <= 0:
+        raise MeshFailure("The surface is a point.", suggestion="Import a 3D surface.")
+    low = (lo[0] - 3 * size, lo[1] - 3 * size, lo[2] - 3 * size)
+    high = (hi[0] + 6 * size, hi[1] + 3 * size, hi[2] + 3 * size)
+    cells = tuple(
+        max(4, round((b - a) / size * cells_per_size / 2)) for a, b in zip(low, high, strict=True)
+    )
+    # A point inside the box but outside the body: halfway between body and the inlet.
+    location = (low[0] + 1.5 * size, (lo[1] + hi[1]) / 2 + 0.01 * size, (lo[2] + hi[2]) / 2)
+    block = background_box(low, high, cells)  # type: ignore[arg-type]
+    snappy = snappy_hex_mesh_dict(stl_name, length=size, location=location)
+    rows = [
+        {"name": "inlet", "role": "inlet"},
+        {"name": "outlet", "role": "outlet"},
+        *({"name": n, "role": "symmetry"} for n in ("yMin", "yMax", "zMin", "zMax")),
+        {"name": Path(stl_name).stem, "role": "wall"},
+    ]
+    return block, snappy, rows
 
 
 def gmsh_geo(geometry: Path, *, size: float = 0.1) -> str:

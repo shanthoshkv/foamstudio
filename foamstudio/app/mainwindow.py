@@ -636,6 +636,9 @@ class MainWindow(QMainWindow):
             self._mesh_panel.send_button.clicked.connect(
                 lambda _checked=False: self.send_patch_roles()
             )
+            self._mesh_panel.snappy_button.clicked.connect(
+                lambda _checked=False: self.write_snappy_mesh()
+            )
         self.properties_dock.setWidget(self._mesh_panel)
 
     def write_block_mesh(self) -> None:
@@ -663,6 +666,46 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self.tr("blockMeshDict written"))
         # The case's boundary conditions must name the same patches as the mesh.
         self._mesh_panel.set_patches(patch_rows(text))
+        self.send_patch_roles()
+
+    def write_snappy_mesh(self) -> None:
+        """External-flow mesh around the imported surface: background box + snappyHexMesh."""
+        import trimesh
+
+        from foamstudio.core.mesh import MeshFailure, snappy_around
+
+        if self._mesh_panel is None:
+            return
+        if self._project is None or self._surface is None:
+            logger.error(
+                "Open a project and import a surface first.\n\n"
+                "File → Import geometry... loads an STL/OBJ/STEP; snappyHexMesh meshes around it."
+            )
+            self.statusBar().showMessage(self.tr("Import geometry first"))
+            return
+        points: list[tuple[float, float, float]] = []
+        faces: list[tuple[int, int, int]] = []
+        for triangle in self._surface.triangles:
+            start = len(points)
+            points.extend((triangle.a, triangle.b, triangle.c))
+            faces.append((start, start + 1, start + 2))
+        stl_name = f"{self._surface.name or 'body'}.stl".replace(" ", "_")
+        try:
+            block, snappy, rows = snappy_around(points, stl_name)
+        except MeshFailure as exc:
+            logger.error("%s", exc)
+            return
+        case = self._project.case_dir
+        surface_dir = case / "constant" / "triSurface"
+        surface_dir.mkdir(parents=True, exist_ok=True)
+        trimesh.Trimesh(vertices=points, faces=faces, process=True).export(surface_dir / stl_name)
+        (case / "system").mkdir(parents=True, exist_ok=True)
+        system = case / "system"
+        (system / "blockMeshDict").write_text(block, encoding="utf-8", newline="\n")
+        (system / "snappyHexMeshDict").write_text(snappy, encoding="utf-8", newline="\n")
+        logger.info("Wrote blockMeshDict, snappyHexMeshDict and triSurface/%s", stl_name)
+        self.statusBar().showMessage(self.tr("snappyHexMesh setup written"))
+        self._mesh_panel.set_patches(rows)
         self.send_patch_roles()
 
     def send_patch_roles(self) -> None:
@@ -713,7 +756,12 @@ class MainWindow(QMainWindow):
             return
         solver = self._run_panel.solver.text().strip() or "simpleFoam"
         queue = JobQueue(bind(installation), self._project.case_dir)
-        queue.add_allrun(solver, parallel=self._run_panel.processes.value())
+        snappy = (self._project.case_dir / "system" / "snappyHexMeshDict").is_file()
+        queue.add_allrun(
+            solver,
+            parallel=self._run_panel.processes.value(),
+            mesh="snappyHexMesh" if snappy else "blockMesh",
+        )
         self._jobs = queue
         logger.info("Running %s", ", ".join(job.name for job in queue.jobs))
 
