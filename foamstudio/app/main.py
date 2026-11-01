@@ -8,18 +8,19 @@ import logging
 import os
 import sys
 from pathlib import Path
-
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from typing import TYPE_CHECKING
 
 from foamstudio import __version__
-from foamstudio.app.crash import install_crash_handler
-from foamstudio.app.i18n.loader import install_translators
 from foamstudio.app.logging_setup import configure_logging
-from foamstudio.app.mainwindow import MainWindow
-from foamstudio.app.settings import AppSettings
-from foamstudio.app.single_instance import SingleInstance
-from foamstudio.app.theme import load_icon
+
+if TYPE_CHECKING:
+    from PySide6.QtWidgets import QApplication
+
+    from foamstudio.app.mainwindow import MainWindow
+    from foamstudio.app.single_instance import SingleInstance
+
+# Qt is imported only when the GUI starts: batch commands (--detect-runtimes, --write-case,
+# --run-case, --report) must work on headless servers without libEGL/X11.
 
 logger = logging.getLogger("foamstudio")
 
@@ -91,6 +92,16 @@ def _print_runtimes() -> int:
 
 
 def build_application(argv: list[str]) -> tuple[QApplication, MainWindow, SingleInstance]:
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from foamstudio.app.crash import install_crash_handler
+    from foamstudio.app.i18n.loader import install_translators
+    from foamstudio.app.mainwindow import MainWindow
+    from foamstudio.app.settings import AppSettings
+    from foamstudio.app.single_instance import SingleInstance
+    from foamstudio.app.theme import load_icon
+
     cli = _parser().parse_args(argv)
     if cli.self_test:
         os.environ["FOAMSTUDIO_HEADLESS"] = "1"
