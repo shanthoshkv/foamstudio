@@ -112,6 +112,7 @@
     "maxTemp": 3000,
     "fvOptions": [],
     "turboPerf": false,
-    "planeStress": false
+    "planeStress": false,
+    "potentialInit": true
   }
 }

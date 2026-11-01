@@ -312,6 +312,17 @@ check("Setup > Write case button", ok, f"{len(files)} files, status={status()}")
 # ---- 10. Mesh panel ----
 tree("Mesh")
 mp = win.properties_dock.widget()
+# snappyHexMesh around the imported box STL (geometry was imported in step 8)
+mp.snappy_button.click()
+pump(2)
+snappy_dict = proj / "case/system/snappyHexMeshDict"
+stls = list((proj / "case/constant/triSurface").glob("*.stl"))
+names = [mp.patches.cellWidget(i, 0).text() for i in range(mp.patches.rowCount())]
+check(
+    "Mesh > Mesh around imported geometry (snappyHexMesh)",
+    snappy_dict.exists() and len(stls) == 1 and stls[0].stem in names and "inlet" in names,
+    f"patches={names}",
+)
 for kind in ("box", "channel", "wedge"):
     mp.kind.setCurrentText(kind)
     mp.write_button.click()
@@ -325,6 +336,7 @@ for kind in ("box", "channel", "wedge"):
         f"Mesh > Write blockMeshDict ({kind})",
         "blocks" in txt and status() == "blockMeshDict written",
     )
+check("Plain blockMeshDict removes the snappy setup", not snappy_dict.exists())
 
 # ---- 11. Run with the generator default case + channel mesh ----
 mp.kind.setCurrentText("channel")

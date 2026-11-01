@@ -662,6 +662,8 @@ class MainWindow(QMainWindow):
         target = self._project.case_dir / "system" / "blockMeshDict"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8", newline="\n")
+        # Plain blockMesh case now: a leftover snappy setup would make Run add snappyHexMesh.
+        (target.parent / "snappyHexMeshDict").unlink(missing_ok=True)
         logger.info("Wrote %s", target)
         self.statusBar().showMessage(self.tr("blockMeshDict written"))
         # The case's boundary conditions must name the same patches as the mesh.

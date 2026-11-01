@@ -234,3 +234,22 @@ def test_wedge_collapses_axis_by_repeated_labels() -> None:
     assert len(vertices) == 6  # duplicate axis points made checkMesh fail (non-planar wedge)
     assert "hex (0 1 2 3 0 1 4 5)" in text
     assert "(0 1 1 0)" in text  # degenerate axis face
+
+
+def test_snappy_around_builds_box_dict_and_patches() -> None:
+    from foamstudio.core.mesh import MeshFailure, background_box, snappy_around
+
+    cube = [(x, y, z) for x in (0.0, 1.0) for y in (0.0, 1.0) for z in (0.0, 1.0)]
+    block, snappy, rows = snappy_around(cube, "body.stl")
+    assert "(-3.0 -3.0 -3.0)" in block and "(7.0 4.0 4.0)" in block
+    assert block.count("symmetryPlane") == 4
+    assert 'file "body.stl";' in snappy and "features" in snappy  # v2412 needs both
+    assert "implicitFeatureSnap true" in snappy
+    assert rows[-1] == {"name": "body", "role": "wall"}
+    assert {r["role"] for r in rows} == {"inlet", "outlet", "symmetry", "wall"}
+    with pytest.raises(MeshFailure):
+        snappy_around([], "body.stl")
+    with pytest.raises(MeshFailure):
+        snappy_around([(1.0, 1.0, 1.0)], "body.stl")
+    with pytest.raises(MeshFailure):
+        background_box((0, 0, 0), (1, 0, 1), (4, 4, 4))
