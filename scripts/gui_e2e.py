@@ -111,6 +111,13 @@ about_calls: list[str] = []
 QMessageBox.about = staticmethod(lambda parent, title, text: about_calls.append(text))
 
 RT = json.loads(Path(sys.argv[2]).read_text())
+# How to count solver processes left after Stop: inside WSL, or on this host.
+PGREP = (
+    ["wsl.exe", "-d", RT["distro"], "--", "pgrep", "-c", "simpleFoam"]
+    if RT["kind"] == "wsl"
+    else ["pgrep", "-c", "simpleFoam"]
+)
+HAS_PVPYTHON = RT["kind"] == "wsl" or shutil.which("pvpython") is not None
 
 # ---- 1. startup ----
 shot("01_startup")
@@ -449,7 +456,7 @@ check(
 rp.stop_button.click()
 ok = wait(lambda: win._solver is not None and not win._solver.isRunning(), 60, 0.5)
 left = subprocess.run(
-    ["wsl.exe", "-d", RT["distro"], "--", "pgrep", "-c", "simpleFoam"],
+    PGREP,
     capture_output=True,
     text=True,
 ).stdout.strip()
@@ -468,16 +475,22 @@ check(
     (cav / "case" / "pvpython_export.py").exists() and status() == "ParaView state written",
 )
 script = (cav / "case" / "pvpython_export.py").read_text()
-win.properties_dock.widget().render_button.click()
-ok = wait(lambda: status() == "ParaView export finished", 240, 1)
-png = cav / "case" / "report.png"
-check(
-    "Results > Export with pvpython (real WSL pvpython)",
-    ok and png.exists() and png.stat().st_size > 10_000 and (cav / "case" / "case.pvsm").exists(),
-    f"status={status()} png={png.stat().st_size if png.exists() else 0}",
-)
-if png.exists():
-    shutil.copy(png, OUT / "11_pvpython_report.png")
+if HAS_PVPYTHON:
+    win.properties_dock.widget().render_button.click()
+    ok = wait(lambda: status() == "ParaView export finished", 240, 1)
+    png = cav / "case" / "report.png"
+    check(
+        "Results > Export with pvpython (real WSL pvpython)",
+        ok
+        and png.exists()
+        and png.stat().st_size > 10_000
+        and (cav / "case" / "case.pvsm").exists(),
+        f"status={status()} png={png.stat().st_size if png.exists() else 0}",
+    )
+    if png.exists():
+        shutil.copy(png, OUT / "11_pvpython_report.png")
+else:
+    check("Results > Export with pvpython", True, "SKIP: pvpython not installed")
 check("ParaView script uses /mnt paths for WSL runtime", "/mnt/" in script and "C:" not in script)
 tree("Reports")
 rpt = win.properties_dock.widget()

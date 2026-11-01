@@ -42,6 +42,8 @@ jobs:
             libxcb-xinerama0 libfontconfig1 libnss3 libxcomposite1 \
             libxdamage1 libxrandr2 libxi6 libxtst6 libglib2.0-0t64
       - name: Build one-folder bundle
+        env:
+          FOAMSTUDIO_BUNDLE_NODE: "1"
         run: |
           python -m pip install -U pip
           python -m pip install . "pyinstaller>=6.10"
@@ -55,6 +57,7 @@ jobs:
           exe=dist/foamstudio/foamstudio
           [ "$RUNNER_OS" = "Windows" ] && exe=$exe.exe
           export FOAMSTUDIO_STATE_DIR="$RUNNER_TEMP/state"
+          ls dist/foamstudio/_internal/node/node* >/dev/null  # bundled Node for --write-case
           "$exe" --version
           "$exe" --self-test
           "$exe" --write-case samples/cavity/case.json --project "$RUNNER_TEMP/wc"

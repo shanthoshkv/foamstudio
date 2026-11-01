@@ -116,3 +116,16 @@ def test_missing_node_names_the_command(monkeypatch: pytest.MonkeyPatch, tmp_pat
 def test_bad_schema_does_not_need_node() -> None:
     with pytest.raises(SpecError, match="schema 99"):
         parse_spec({"schema": 99})
+
+
+def test_node_executable_prefers_env_then_bundle(tmp_path, monkeypatch) -> None:  # noqa: ANN001
+    from foamstudio.generator.headless import node_executable
+
+    monkeypatch.delenv("FOAMSTUDIO_NODE", raising=False)
+    assert node_executable(tmp_path) == "node"
+    (tmp_path / "node").mkdir()
+    bundled = tmp_path / "node" / "node.exe"
+    bundled.write_bytes(b"")
+    assert node_executable(tmp_path) == str(bundled)
+    monkeypatch.setenv("FOAMSTUDIO_NODE", "/opt/node/bin/node")
+    assert node_executable(tmp_path) == "/opt/node/bin/node"

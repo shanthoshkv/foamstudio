@@ -255,7 +255,19 @@ def _apply_argv(spec_path: Path, *, case_name: str | None) -> list[str]:
 def _node_argv(*args: str) -> list[str]:
     root = repository_root()
     script = root / "tests" / "headless.js"
-    return [os.environ.get("FOAMSTUDIO_NODE", "node"), str(script), *args]
+    return [node_executable(root), str(script), *args]
+
+
+def node_executable(root: Path) -> str:
+    """FOAMSTUDIO_NODE, else the Node bundled by the installer (root/node/), else PATH."""
+    chosen = os.environ.get("FOAMSTUDIO_NODE")
+    if chosen:
+        return chosen
+    for name in ("node.exe", "node"):
+        bundled = root / "node" / name
+        if bundled.is_file():
+            return str(bundled)
+    return "node"
 
 
 def _write_temp(text: str, *, suffix: str) -> Path:

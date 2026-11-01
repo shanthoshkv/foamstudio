@@ -3,6 +3,7 @@
 # Qt Charts and Qt Data Visualization stay excluded.
 
 import os
+import shutil
 
 from PyInstaller.utils.hooks import collect_data_files
 
@@ -11,7 +12,13 @@ root = os.path.abspath(os.path.join(SPECPATH, os.pardir))
 a = Analysis(
     [os.path.join(root, "foamstudio", "__main__.py")],
     pathex=[],
-    binaries=[],
+    # FOAMSTUDIO_BUNDLE_NODE=1 ships the build machine's Node (MIT) as node/ so the frozen
+    # CLI --write-case works without Node installed. The GUI uses Qt WebEngine instead.
+    binaries=(
+        [(shutil.which("node"), "node")]
+        if os.environ.get("FOAMSTUDIO_BUNDLE_NODE") == "1" and shutil.which("node")
+        else []
+    ),
     datas=[
         (os.path.join(root, "openfoam_case_generator.html"), "."),
         (os.path.join(root, "tests", "headless.js"), "tests"),

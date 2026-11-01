@@ -30,3 +30,7 @@ Phase 9 adds installer scripts. They were not executed here.
 - `--write-case` (CLI) needs **Node** on PATH. The GUI writes cases through Qt WebEngine and does not.
 - Inno Setup was not installed on this machine, so no installer was compiled locally. `.github/workflows/release.yml` builds all three OS bundles, runs the smoke test on the frozen app, compiles the Inno installer, writes SHA256SUMS, and attests build provenance. That workflow has not run yet.
 - Installers stay **unsigned** until a certificate exists (`signing/sign.ps1`).
+
+## Bundled Node (2026-11-01)
+
+The release build sets `FOAMSTUDIO_BUNDLE_NODE=1`, which copies the build machine's Node binary (MIT licence) into `_internal/node/`. The frozen CLI `--write-case` then works without Node installed. `foamstudio.generator.headless.node_executable` checks `FOAMSTUDIO_NODE` first, then the bundled copy, then `node` on PATH. The GUI writes cases through Qt WebEngine and never needs Node.
