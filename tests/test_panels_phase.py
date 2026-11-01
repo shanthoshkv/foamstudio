@@ -101,7 +101,7 @@ def test_pdf_report(tmp_path: Path) -> None:
     assert destination.stat().st_size >= 50
 
 
-def test_viewer_pyvista_points_are_rows(monkeypatch: pytest.MonkeyPatch, qapp: object) -> None:
+def test_viewer_pyvista_points_are_rows(monkeypatch: pytest.MonkeyPatch, qtbot: object) -> None:
     from PySide6.QtWidgets import QWidget
 
     from foamstudio.core.geometry.model import Patch, Surface, Triangle
@@ -123,7 +123,9 @@ def test_viewer_pyvista_points_are_rows(monkeypatch: pytest.MonkeyPatch, qapp: o
         (Triangle((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),),
         (Patch("inlet", "patch", (0,)),),
     )
-    text = Viewer3D().set_surface(surface)
+    viewer = Viewer3D()
+    qtbot.addWidget(viewer)  # type: ignore[attr-defined]  # owned, closed at teardown
+    text = viewer.set_surface(surface)
     assert "could not build" not in text
     assert captured["shape"] == (3, 3)
     assert captured["cells"] == 1

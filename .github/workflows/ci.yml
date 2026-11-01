@@ -167,10 +167,9 @@ jobs:
           sudo systemctl start ssh
           ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new localhost true
           # Fake scheduler: sbatch --wait runs the job script, srun runs its command.
-          mkdir -p ~/bin
-          printf '#!/bin/bash\nshift\nexec bash "$@"\n' > ~/bin/sbatch
-          printf '#!/bin/bash\nexec "$@"\n' > ~/bin/srun
-          chmod +x ~/bin/sbatch ~/bin/srun
+          printf '#!/bin/bash\nshift\nexec bash "$@"\n' | sudo tee /usr/local/bin/sbatch > /dev/null
+          printf '#!/bin/bash\nexec "$@"\n' | sudo tee /usr/local/bin/srun > /dev/null
+          sudo chmod +x /usr/local/bin/sbatch /usr/local/bin/srun
           ssh -o BatchMode=yes localhost 'bash -lc "command -v sbatch"'
       - name: SSH runtime against sshd
         env:

@@ -64,7 +64,7 @@ def test_ssh_push_run_pull(tmp_path: Path) -> None:
 
 
 def test_ssh_slurm_runtime_blocks_on_the_batch_job(tmp_path: Path) -> None:
-    """CI installs fake sbatch/srun in ~/bin (sbatch --wait runs the script, srun execs)."""
+    """CI installs fake sbatch/srun in /usr/local/bin (sbatch --wait runs the script)."""
     remote = tmp_path / "remote-case"
     remote.mkdir()
     installation = Installation(
