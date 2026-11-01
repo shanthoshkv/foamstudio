@@ -24,6 +24,8 @@ def ssh_argv(
     _reject("user", installation.user)
     _reject("remote case", remote)
     _reject("bashrc", installation.bashrc)
+    if installation.scheduler:
+        command = scheduled(installation, command)
     body = bash_command(installation.bashrc, remote, command, env)
     argv = (
         "ssh",
@@ -37,6 +39,38 @@ def ssh_argv(
         remote_bash(body),
     )
     return argv, body
+
+
+JOB_NAME = "foamstudio"
+
+
+def scheduled(installation: Installation, command: str) -> str:
+    """Wrap one step as a batch job that blocks until the cluster job ends.
+
+    The job script is written into the remote case, then `sbatch --wait` (SLURM) or
+    `qsub -W block=true` (PBS) submits it; the exit status is the job's, so the job queue,
+    Stop, and logs work as for a local run.
+    """
+    if installation.scheduler == "slurm":
+        script = slurm_script(installation, command, job_name=JOB_NAME)
+        submit = "sbatch --wait .foamstudio-job.sh"
+    elif installation.scheduler == "pbs":
+        script = pbs_script(installation, command, job_name=JOB_NAME)
+        submit = "qsub -W block=true .foamstudio-job.sh"
+    else:
+        raise ValueError(
+            f"Unknown scheduler {installation.scheduler!r}. Use slurm or pbs, or leave it empty."
+        )
+    return f"cat > .foamstudio-job.sh <<'FOAMSTUDIO_JOB'\n{script}FOAMSTUDIO_JOB\n{submit}"
+
+
+def cancel_script(installation: Installation) -> str:
+    """Remote shell text that cancels this user's FoamStudio batch jobs."""
+    if installation.scheduler == "slurm":
+        return f'scancel --name={JOB_NAME} --user="$(whoami)"'
+    if installation.scheduler == "pbs":
+        return f'qselect -N {JOB_NAME} -u "$(whoami)" | xargs -r qdel'
+    raise ValueError(f"Runtime has no scheduler ({installation.scheduler!r}).")
 
 
 def remote_bash(script: str) -> str:

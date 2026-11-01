@@ -5833,7 +5833,7 @@ ${location ? `    location    "${location}";\n` : ''}    object      ${objectNam
     }
 
     // ─── CASE SPEC (single source of truth; deterministic — no timestamps) ───
-    const GEN_VERSION = '2.2.2';
+    const GEN_VERSION = '2.2.3';
     const SPEC_SCHEMA = 1;
     function caseSpec() {
       const st = JSON.parse(JSON.stringify(STATE));
@@ -6261,6 +6261,13 @@ ${location ? `    location    "${location}";\n` : ''}    object      ${objectNam
       else if (['k', 'epsilon', 'omega', 'nuTilda', 'T', 'Tu', 'b', 'Xi', 'ft', 'fu', 'Su'].includes(field)) {
         // k/omega/epsilon = 0 internally -> divide-by-zero (FPE) on first iteration; seed with inlet values
         internalVal = String(getDefaultBC({ role: 'inlet', fields: {} }, field).value);
+        // Prefer the case's own inlet/freestream value (in case.json) over the UI calculator default,
+        // so the initial field matches the flow speed and a case.json round-trip reproduces it.
+        if (['k', 'epsilon', 'omega', 'nuTilda'].includes(field)) {
+          const src = (STATE.patches || []).find(p => ['inlet', 'freestream'].includes(p.role) &&
+            p.fields && p.fields[field] && typeof p.fields[field].value === 'number' && p.fields[field].value > 0);
+          if (src) internalVal = String(src.fields[field].value);
+        }
         if (field === 'T' && solverFam() === 'scalar') internalVal = '0';
       } else if (field === 'p' || field === 'p_rgh') internalVal = (comp && !(field === 'p_rgh' && pGauge())) ? String(STATE.pInf || 1e5) : '0';
       else internalVal = '0';

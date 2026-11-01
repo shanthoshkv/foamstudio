@@ -47,7 +47,10 @@ def test_ssh_plan_batchmode_and_round_trip(tmp_path: Path) -> None:
     remote = shlex.split(" ".join(argv[argv.index("me@hpc.example") + 1 :]))
     assert remote[:2] == ["bash", "-lc"] and len(remote) == 3
     assert remote[2] == plan.body
-    kill = shlex.split(kill_argv(_SSH, 42, platform="linux")[-1])
+    import dataclasses
+
+    plain = dataclasses.replace(_SSH, scheduler="")
+    kill = shlex.split(kill_argv(plain, 42, platform="linux")[-1])
     assert kill == ["bash", "-lc", "kill -- -42"]
     assert "$" not in _SSH.host
     assert Installation.from_dict(_SSH.to_dict()) == _SSH
@@ -135,3 +138,25 @@ def test_cli_batch_actions(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert "runtime" in capsys.readouterr().err
     assert main(["--self-test"]) == 0
     assert "foamstudio: launched" in capsys.readouterr().out
+
+
+def test_slurm_runtime_submits_blocking_job_and_cancels_by_name(tmp_path: Path) -> None:
+    import dataclasses
+
+    from foamstudio.core.runtime.ssh import scheduled
+
+    slurm = dataclasses.replace(_SSH, scheduler="slurm")
+    plan = bind(slurm).plan("simpleFoam", tmp_path)
+    remote = shlex.split(" ".join(plan.steps[0][plan.steps[0].index("me@hpc.example") + 1 :]))
+    assert remote[:2] == ["bash", "-lc"] and len(remote) == 3
+    body = remote[2]
+    assert "#SBATCH --job-name=foamstudio" in body
+    assert "srun simpleFoam" in body
+    assert body.rstrip().endswith("sbatch --wait .foamstudio-job.sh")
+    cancel = kill_argv(slurm, 42, platform="linux")
+    assert shlex.split(cancel[-1])[2].startswith("scancel --name=foamstudio")
+    pbs = dataclasses.replace(_SSH, scheduler="pbs")
+    assert "qsub -W block=true" in scheduled(pbs, "simpleFoam")
+    assert "qdel" in kill_argv(pbs, 42, platform="linux")[-1]
+    with pytest.raises(ValueError, match="scheduler"):
+        scheduled(dataclasses.replace(_SSH, scheduler="lsf"), "simpleFoam")

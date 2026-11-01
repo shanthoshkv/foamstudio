@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generator": "2.2.2",
+  "generator": "2.2.3",
   "openfoamVersion": 2412,
   "caseName": "naca0012-a0",
   "state": {
@@ -70,7 +70,7 @@
     "gradLimiter": 1,
     "timeSchemeOverride": "auto",
     "pRelax": 0.3,
-    "uRelax": 0.7,
+    "uRelax": 0.5,
     "kRelax": 0.5,
     "pRes": "1e-12",
     "uRes": "1e-12",

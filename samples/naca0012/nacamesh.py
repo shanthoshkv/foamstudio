@@ -80,16 +80,35 @@ def main() -> None:
         )
 
     gn = f"{g_normal!r}"
+    # Wake blocks: wall spacing at the trailing edge, relaxed to 1e-3 at the outflow, so far-wake
+    # cells are not 4e-6 thick (aspect ratio ~6e5 stalls the pressure solver).
+    gfar = f"{normal_grading(1e-3, N_NORMAL, R)!r}"
+
+    def hexa_edges(v: tuple[int, int, int, int], cells: tuple[int, int], grading: str) -> str:
+        a, b, c, d = v
+        return (
+            f"    hex ({a} {b} {c} {d} {a + o} {b + o} {c + o} {d + o}) "
+            f"({cells[0]} {cells[1]} 1) edgeGrading ({grading} 1 1 1 1)"
+        )
+
     g_le = "8"  # front blocks: cells grow away from the leading edge
     g_te = "0.2"  # aft blocks: cells shrink toward the trailing edge
     g_wake = "200"
     blocks = [
         hexa((0, 1, 5, 4), (N_FRONT, N_NORMAL), (g_le, gn)),
         hexa((1, 2, 6, 5), (N_AFT, N_NORMAL), (g_te, gn)),
-        hexa((2, 9, 10, 6), (N_WAKE, N_NORMAL), (g_wake, gn)),
+        hexa_edges(
+            (2, 9, 10, 6),
+            (N_WAKE, N_NORMAL),
+            f"{g_wake} {g_wake} {g_wake} {g_wake} {gn} {gfar} {gfar} {gn}",
+        ),
         hexa((0, 4, 7, 3), (N_NORMAL, N_FRONT), (gn, g_le)),
         hexa((3, 7, 8, 2), (N_NORMAL, N_AFT), (gn, g_te)),
-        hexa((2, 8, 11, 9), (N_NORMAL, N_WAKE), (gn, g_wake)),
+        hexa_edges(
+            (2, 8, 11, 9),
+            (N_NORMAL, N_WAKE),
+            f"{gn} {gfar} {gfar} {gn} {g_wake} {g_wake} {g_wake} {g_wake}",
+        ),
     ]
 
     def arc_point(angle_deg: float, z: float) -> str:

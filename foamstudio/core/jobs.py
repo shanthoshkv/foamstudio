@@ -12,7 +12,7 @@ from foamstudio.core.runtime.base import BoundRuntime
 from foamstudio.core.runtime.model import CommandResult, Installation, RuntimeFailure, log_tail
 from foamstudio.core.runtime.paths import JOB_PID, launch_env
 from foamstudio.core.runtime.probe import Completed, decode_output
-from foamstudio.core.runtime.ssh import remote_bash
+from foamstudio.core.runtime.ssh import cancel_script, remote_bash
 
 MATRIX_ALLRUN = "./Allrun"
 
@@ -194,6 +194,15 @@ def kill_argv(installation: Installation, pid: int, *, platform: str) -> tuple[s
             "bash",
             "-lc",
             f"kill -- -{pid}",
+        )
+    if installation.kind == "ssh" and installation.scheduler:
+        # The local ssh client is not the solver; cancel the cluster job by name.
+        return (
+            "ssh",
+            "-o",
+            "BatchMode=yes",
+            f"{installation.user}@{installation.host}",
+            remote_bash(cancel_script(installation)),
         )
     if installation.kind == "ssh":
         return (

@@ -166,6 +166,12 @@ jobs:
           chmod go-w ~
           sudo systemctl start ssh
           ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new localhost true
+          # Fake scheduler: sbatch --wait runs the job script, srun runs its command.
+          mkdir -p ~/bin
+          printf '#!/bin/bash\nshift\nexec bash "$@"\n' > ~/bin/sbatch
+          printf '#!/bin/bash\nexec "$@"\n' > ~/bin/srun
+          chmod +x ~/bin/sbatch ~/bin/srun
+          ssh -o BatchMode=yes localhost 'bash -lc "command -v sbatch"'
       - name: SSH runtime against sshd
         env:
           FOAMSTUDIO_SSH_INTEGRATION: "1"

@@ -61,3 +61,25 @@ def test_ssh_push_run_pull(tmp_path: Path) -> None:
     pull = subprocess.run(list(pull_argv(installation, remote_case, str(back))), check=False)
     assert pull.returncode == 0
     assert (back / "log.help").is_file()
+
+
+def test_ssh_slurm_runtime_blocks_on_the_batch_job(tmp_path: Path) -> None:
+    """CI installs fake sbatch/srun in ~/bin (sbatch --wait runs the script, srun execs)."""
+    remote = tmp_path / "remote-case"
+    remote.mkdir()
+    installation = Installation(
+        kind="ssh",
+        flavour="esi",
+        version="2412",
+        bashrc=BASHRC,
+        host=os.environ.get("FOAMSTUDIO_SSH_HOST", "localhost"),
+        user=os.environ.get("FOAMSTUDIO_SSH_USER", getpass.getuser()),
+        remote_case=str(remote),
+        scheduler="slurm",
+    )
+    result = asyncio.run(
+        bind(installation).run("simpleFoam -help > log.help 2>&1", tmp_path, timeout=120)
+    )
+    assert result.returncode == 0
+    assert "#SBATCH --job-name=foamstudio" in (remote / ".foamstudio-job.sh").read_text()
+    assert "simpleFoam" in (remote / "log.help").read_text(encoding="utf-8")
