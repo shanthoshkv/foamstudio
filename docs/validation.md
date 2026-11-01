@@ -7,6 +7,7 @@ Every number here comes from a real OpenFOAM run on the development machine (WSL
 | Lid-driven cavity, Re = 100 | Ghia et al. 1982 | Ux on the vertical centreline, 17 stations | max abs error 0.0121 | 0.05 | **PASS** |
 | Backward-facing step, Re_h ≈ 37,000 | Driver and Seegmiller 1985 | Reattachment xr/h | 10h run-up: 5.54 (FAIL); 50h run-up: **5.90** | 6.26 ± 0.5 | **PASS** (marginal) |
 | Convergent-divergent nozzle, A/A* = 2 | 1-D isentropic, γ = 1.4 | Exit Mach, throat p/p0 (section averages) | +1.7 % / −1.9 % | 1 % | **FAIL** |
+| NACA 0012, α = 0° | Ladson, NASA TM 100526 | Cl / Cd | 0.0002 / 0.0143 | 0 ± 0.05 / 0.008 ± 0.004 | Cl **PASS**, Cd **FAIL** |
 | NACA 0012, α = 10° | Ladson, NASA TM 100526 | Cl / Cd | 1.118 / 0.0203 | 1.025 ± 0.025 / 0.012 ± 0.008 | **FAIL** (both) |
 
 ## Cavity
@@ -50,7 +51,7 @@ An axisymmetric wedge version (`samples/nozzle/*-axi`, which matches the 1-D ass
 
 The first versions of the mesh diverged within 60 iterations, whatever the turbulence model. `checkMesh -allGeometry` traced this to 64 faces at the chordwise block seam with a 180x cell-size jump: the far-field split point sat directly above x = 0.3. Moving the split to 120° fixed it (minimum interpolation weight 0.0056 → 0.17).
 
-At α = 10°, Cl = 1.118 and Cd = 0.0203. For comparison, NASA TMR's SA solution gives Cl ≈ 1.09 and Cd ≈ 0.0123, so lift is within 2.5 % of the SA benchmark but drag is about 65 % high. Likely causes: fixed-velocity far field on the straight top and bottom boundaries (no freestream/characteristic BC in the generator), and a single mesh. α = 0° is being rerun.
+At α = 10°, Cl = 1.118 and Cd = 0.0203. For comparison, NASA TMR's SA solution gives Cl ≈ 1.09 and Cd ≈ 0.0123, so lift is within 2.5 % of the SA benchmark but drag is about 65 % high. Likely causes: fixed-velocity far field on the straight top and bottom boundaries (no freestream/characteristic BC in the generator), and a single mesh. At α = 0°, Cl = 0.0002 (pass) and Cd = 0.0143 against TMR's 0.0081 (about 77 % high). Drag is high by a similar fraction at both angles, which points to one systematic cause rather than anything angle-specific.
 
 ## What these results do and do not show
 
