@@ -142,6 +142,17 @@ _CHANNEL_JS = """
 """
 
 
+# Web-only controls that cannot work in the desktop shell: remote links are blocked
+# (_BlockRemote) and ZIP downloads have no handler. "Write case" is the desktop save path.
+_DESKTOP_CSS = (
+    "<style>"
+    'a[href="https://aboutkvs.vercel.app"],'
+    'button[onclick^="downloadZip"],button[onclick^="downloadUpdatedZip"]'
+    "{display:none !important}"
+    "</style>"
+)
+
+
 class GeneratorBridge(QObject):
     """Object registered as ``py`` in the page."""
 
@@ -230,7 +241,7 @@ class GeneratorSession(QObject):
                     "openfoam_case_generator.html.",
                 ) from exc
         self._generation += 1
-        html = self._html.replace("<head>", f"<head><!--{self._generation}-->", 1)
+        html = self._html.replace("<head>", f"<head><!--{self._generation}-->{_DESKTOP_CSS}", 1)
         self.view.setHtml(html, QUrl.fromLocalFile(str(self.html_path)))
         self._wait_until(
             (

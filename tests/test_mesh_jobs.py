@@ -193,3 +193,34 @@ def test_windows_process_tree_kill() -> None:
                 ["taskkill", "/PID", str(parent.pid), "/T", "/F"],
                 check=False,
             )
+
+
+def test_patch_rows_match_block_mesh_boundary() -> None:
+    from foamstudio.core.mesh import block_mesh_dict, patch_rows
+
+    channel = {row["name"]: row["role"] for row in patch_rows(block_mesh_dict("channel"))}
+    assert channel == {
+        "inlet": "inlet",
+        "outlet": "outlet",
+        "yMin": "wall",
+        "yMax": "wall",
+        "zMin": "empty",
+        "zMax": "empty",
+    }
+    box = {row["name"]: row["role"] for row in patch_rows(block_mesh_dict("box"))}
+    assert box["xMin"] == "wall" and box["zMax"] == "empty"
+    wedge = [row["role"] for row in patch_rows(block_mesh_dict("wedge"))]
+    assert wedge.count("wedge") == 2
+
+
+def test_allrun_steps_write_logs_like_run_application(tmp_path: Path) -> None:
+    from foamstudio.core.jobs import logged
+
+    queue = JobQueue(bind(_NATIVE, _Probe()), tmp_path)
+    queue.add_allrun("simpleFoam", parallel=2, mesh="blockMesh")
+    names = [job.name for job in queue.jobs]
+    assert names == ["blockMesh", "checkMesh", "decomposePar", "simpleFoam", "reconstructPar"]
+    solver = queue.jobs[3].command
+    assert "mpirun -np 2 simpleFoam -parallel" in solver and "> log.simpleFoam 2>&1" in solver
+    assert "$" not in "".join(job.command for job in queue.jobs)
+    assert logged("checkMesh", "checkMesh").endswith("|| { tail -n 40 log.checkMesh ; exit 1 ; }")

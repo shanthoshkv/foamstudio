@@ -6,6 +6,7 @@ These are mesh dictionaries. Solver dictionaries stay in openfoam_case_generator
 from __future__ import annotations
 
 import math
+import re
 from pathlib import Path
 
 _FOOTER = "\n// ************************************************************************* //\n"
@@ -162,6 +163,21 @@ def _patch(name: str, kind: str, face: str) -> str:
         "        );\n"
         "    }"
     )
+
+
+_BOUNDARY_ENTRY = re.compile(r"^\s{4}(\w+)\s*\n\s{4}\{\s*\n\s+type\s+(\w+);", re.M)
+_TYPE_ROLE = {"wall": "wall", "empty": "empty", "wedge": "wedge", "symmetryPlane": "symmetry"}
+
+
+def patch_rows(block_mesh_text: str) -> list[dict[str, str]]:
+    """Generator patch rows (name, role) for the boundary of a blockMeshDict we wrote."""
+    rows: list[dict[str, str]] = []
+    for name, kind in _BOUNDARY_ENTRY.findall(block_mesh_text):
+        role = _TYPE_ROLE.get(kind)
+        if role is None:  # plain `patch`: the name says which way the flow goes
+            role = "inlet" if "inlet" in name.lower() else "outlet"
+        rows.append({"name": name, "role": role})
+    return rows
 
 
 def first_cell_height(velocity: float, nu: float, length: float, y_plus: float) -> float:

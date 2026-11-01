@@ -228,6 +228,8 @@ class RuntimeWizard(QDialog):
         if not isinstance(result, DetectionReport):
             self._show_failure(self.tr("Detection returned an unexpected result."), detect=True)
             return
+        # Keep the user's pick across Refresh; detection order is not guaranteed.
+        previous = self._current()
         self._found = list(result.installations)
         self.runtimeList.clear()
         for index, installation in enumerate(self._found):
@@ -236,7 +238,8 @@ class RuntimeWizard(QDialog):
             self.runtimeList.addItem(item)
         self.notesView.setPlainText("\n\n".join(result.notes) or self.tr("No notes."))
         if self._found:
-            self.runtimeList.setCurrentRow(0)
+            keep = self._found.index(previous) if previous in self._found else 0
+            self.runtimeList.setCurrentRow(keep)
         else:
             self.testButton.setEnabled(False)
             self.useButton.setEnabled(False)

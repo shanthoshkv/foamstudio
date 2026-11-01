@@ -48,7 +48,8 @@ class JobQueue:
         mesh: str = "blockMesh",
     ) -> None:
         for command in allrun_commands(solver, parallel=parallel, mesh=mesh):
-            self.add(command)
+            app = solver if command.startswith("mpirun") else command.split()[0]
+            self.add(logged(command, app), name=app)
 
     def add_resume(self, solver: str) -> Job:
         """Continue from the newest time directory. OpenFOAM's foamDictionary edits controlDict."""
@@ -169,6 +170,15 @@ def allrun_commands(solver: str, *, parallel: int = 1, mesh: str = "blockMesh") 
     else:
         steps.append(solver)
     return tuple(steps)
+
+
+def logged(command: str, app: str) -> str:
+    """Like Allrun's runApplication: output goes to log.<app>; on failure show its tail.
+
+    No `$` so it is safe in every runtime's argv and script body.
+    """
+    log = f"log.{app}"
+    return f"{{ {command} ; }} > {log} 2>&1 || {{ tail -n 40 {log} ; exit 1 ; }}"
 
 
 def kill_argv(installation: Installation, pid: int, *, platform: str) -> tuple[str, ...]:

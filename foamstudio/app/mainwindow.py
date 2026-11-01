@@ -274,13 +274,18 @@ class MainWindow(QMainWindow):
 
     def _attach_log_handler(self) -> None:
         bridge = _LogBridge(self)
-        bridge.message.connect(self.log_view.appendPlainText)
+        bridge.message.connect(self._append_log)
         handler = _QtLogHandler(bridge)
         handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
         if logger.level == logging.NOTSET:
             logger.setLevel(logging.INFO)
         logger.addHandler(handler)
         self._log_handler = handler
+
+    def _append_log(self, text: str) -> None:
+        self.log_view.appendPlainText(text)
+        bar = self.log_view.verticalScrollBar()
+        bar.setValue(bar.maximum())  # always follow the newest line
 
     def _apply_model(self, model: SettingsModel, *, persist: bool) -> None:
         model.validate()
@@ -630,7 +635,7 @@ class MainWindow(QMainWindow):
         self.properties_dock.setWidget(self._mesh_panel)
 
     def write_block_mesh(self) -> None:
-        from foamstudio.core.mesh import MeshFailure, block_mesh_dict
+        from foamstudio.core.mesh import MeshFailure, block_mesh_dict, patch_rows
 
         if self._mesh_panel is None:
             return
@@ -652,6 +657,20 @@ class MainWindow(QMainWindow):
         target.write_text(text, encoding="utf-8", newline="\n")
         logger.info("Wrote %s", target)
         self.statusBar().showMessage(self.tr("blockMeshDict written"))
+        # The case's boundary conditions must name the same patches as the mesh.
+        rows = patch_rows(text)
+        session = None if self._setup is None else self._setup.session
+        if session is not None and os.environ.get("FOAMSTUDIO_HEADLESS") != "1":
+            try:
+                session.set_patches(rows)
+                logger.info("Generator patches set from the mesh: %s", json.dumps(rows))
+            except Exception as exc:
+                logger.error("%s", exc)
+        else:
+            logger.info(
+                "Open Setup before Write case so the generator gets these patches: %s",
+                ", ".join(row["name"] for row in rows),
+            )
 
     def _show_run_panel(self) -> None:
         if self._run_panel is None:
@@ -685,7 +704,7 @@ class MainWindow(QMainWindow):
         queue = JobQueue(bind(installation), self._project.case_dir)
         queue.add_allrun(solver, parallel=self._run_panel.processes.value())
         self._jobs = queue
-        logger.info("Running %s", ", ".join(job.command for job in queue.jobs))
+        logger.info("Running %s", ", ".join(job.name for job in queue.jobs))
 
         def work() -> str:
             results = queue.run_blocking(live=True)
@@ -697,7 +716,7 @@ class MainWindow(QMainWindow):
                     f"{job.log_tail}\n\n{job.suggestion}"
                 )
                 raise RuntimeError(detail)
-            return "\n".join(f"{job.status} {job.command}" for job in results)
+            return "\n".join(f"{job.status} {job.name}" for job in results)
 
         self.statusBar().showMessage(self.tr("Running"))
         self._solver = _Background(work, self)
@@ -719,6 +738,11 @@ class MainWindow(QMainWindow):
     def _solver_ok(self, result: object) -> None:
         logger.info("%s", result)
         self.statusBar().showMessage(self.tr("Run finished"))
+        if self._project is not None and self._run_panel is not None:
+            solver = self._run_panel.solver.text().strip() or "simpleFoam"
+            log = self._project.case_dir / f"log.{solver}"
+            if log.is_file():
+                self.show_residuals(log.read_text(encoding="utf-8", errors="replace"))
 
     def _solver_fail(self, message: str) -> None:
         logger.error("%s", message)
