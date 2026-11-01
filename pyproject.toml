@@ -77,8 +77,8 @@ addopts = "-q --tb=short"
 source = ["foamstudio/core"]
 
 [tool.coverage.report]
-# ponytail: gate below measured 87.79% (2026-10-31); plan.md target is 90%, raise when core tests catch up
-fail_under = 87
+# plan.md target; measured 90.36 % on Windows (the live-job test adds more on Linux/macOS)
+fail_under = 90
 
 [tool.ruff]
 line-length = 100
