@@ -11,7 +11,7 @@
     "rotRPM": 1000,
     "rotZone": "rotor",
     "solver": "simpleFoam",
-    "turbModel": "kOmegaSST",
+    "turbModel": "SpalartAllmaras",
     "wallTx": "lowRe",
     "nu": 1.6666666666666668e-07,
     "rho": 1.225,
@@ -34,13 +34,9 @@
             "Uy": 0.0,
             "Uz": 0
           },
-          "k": {
+          "nuTilda": {
             "type": "fixedValue",
-            "value": 9.6e-07
-          },
-          "omega": {
-            "type": "fixedValue",
-            "value": 5
+            "value": 5e-07
           }
         }
       },

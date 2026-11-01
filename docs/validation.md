@@ -7,7 +7,7 @@ Every number here comes from a real OpenFOAM run on the development machine (WSL
 | Lid-driven cavity, Re = 100 | Ghia et al. 1982 | Ux on the vertical centreline, 17 stations | max abs error 0.0121 | 0.05 | **PASS** |
 | Backward-facing step, Re_h ≈ 37,000 | Driver and Seegmiller 1985 | Reattachment xr/h | 10h run-up: 5.54 (FAIL); 50h run-up: **5.90** | 6.26 ± 0.5 | **PASS** (marginal) |
 | Convergent-divergent nozzle, A/A* = 2 | 1-D isentropic, γ = 1.4 | Exit Mach, throat p/p0 (section averages) | +1.7 % / −1.9 % | 1 % | **FAIL** |
-| NACA 0012, α = 0 and 10° | Ladson, NASA TM 100526 | Cl, Cd | not run, needs a C-mesh | see `samples/naca0012/reference.json` | not run |
+| NACA 0012, α = 10° | Ladson, NASA TM 100526 | Cl / Cd | 1.118 / 0.0203 | 1.025 ± 0.025 / 0.012 ± 0.008 | **FAIL** (both) |
 
 ## Cavity
 
@@ -25,6 +25,10 @@ Likely reasons for the short reattachment length:
 
 A 50h run-up (28,000 cells) gives xr/h = 5.90 at the sample line nearest the wall, inside the band by 0.14, and 5.64 one millimetre higher. The pass is marginal and comes from one mesh. A three-mesh GCI study is still needed.
 
+### Wall-resolved step (low-Re SST)
+
+`samples/backward-facing-step/case-lowre.json` with a y+ ≈ 1 mesh (54,000 cells, wall y+ avg 0.34) did **not converge** in 6000 iterations (p residual 6e-3). The near-wall Ux changes sign at x/h 0.05, 5.69, 11.7 and 19.1. The extra downstream crossings show the field is not settled, so this run is **inconclusive**. It needs more iterations, or a start from the wall-function solution.
+
 ## Nozzle
 
 `samples/nozzle/`: inviscid `rhoCentralFoam`, planar half-nozzle, 400 × 40 cells. The flow chokes and reaches M ≈ 2.2 at the exit. The section averages miss the 1 % band by 1–2 %, and exit total temperature drops 2.5 %, a sign of numerical dissipation. A mesh refinement study is the next step.
@@ -38,7 +42,15 @@ A 50h run-up (28,000 cells) gives xr/h = 5.90 at the sample line nearest the wal
 | Nozzle, 100×10 / 200×20 / 400×40 | throat p/p0 (area average) | 0.5144 | 0.5199 | 0.5184 | 0.07 % | Mesh-converged, yet still −1.9 % from 1-D theory. The gap is **model-form** error: a 2D nozzle has a curved sonic line, so it cannot match 1-D isentropic flow to 1 %. |
 | Nozzle | exit Mach (mass average) | 2.2227 | 2.2256 | 2.2345 | not defined | The value moves away from 1-D theory as the mesh refines, so it is not in the asymptotic range. |
 
-The nozzle FAIL comes from the reference model, not from the solver or the mesh. A fair check needs a quasi-1-D reference that accounts for the 2D section, or a 2D method-of-characteristics solution.
+An axisymmetric wedge version (`samples/nozzle/*-axi`, which matches the 1-D assumptions better) meshes cleanly, but rhoCentralFoam's Courant limit includes the wedge faces. dt drops 12x at the axis, so reaching t = 0.01 s would take hours, and the run was stopped. The nozzle FAIL comes from the reference model, not from the solver or the mesh. A fair check needs a quasi-1-D reference that accounts for the 2D section, or a 2D method-of-characteristics solution.
+
+## NACA 0012
+
+`samples/naca0012/`: a 6-block C-mesh (`nacamesh.py`), 84,000 cells, 50-chord far field, first cell 4e-6 c (y+ avg 0.47). Spalart–Allmaras, Re 6e6, 3000 iterations, p residual about 1e-6.
+
+The first versions of the mesh diverged within 60 iterations, whatever the turbulence model. `checkMesh -allGeometry` traced this to 64 faces at the chordwise block seam with a 180x cell-size jump: the far-field split point sat directly above x = 0.3. Moving the split to 120° fixed it (minimum interpolation weight 0.0056 → 0.17).
+
+At α = 10°, Cl = 1.118 and Cd = 0.0203. For comparison, NASA TMR's SA solution gives Cl ≈ 1.09 and Cd ≈ 0.0123, so lift is within 2.5 % of the SA benchmark but drag is about 65 % high. Likely causes: fixed-velocity far field on the straight top and bottom boundaries (no freestream/characteristic BC in the generator), and a single mesh. α = 0° is being rerun.
 
 ## What these results do and do not show
 

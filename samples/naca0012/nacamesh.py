@@ -16,6 +16,7 @@ from pathlib import Path
 
 R = 50.0  # far field radius
 XS = 0.3  # chordwise block split
+SPLIT_DEG = 120.0  # far-field point that pairs with the chordwise split
 N_FRONT, N_AFT, N_NORMAL, N_WAKE = 70, 100, 150, 110
 
 
@@ -54,16 +55,19 @@ def main() -> None:
     first = float(sys.argv[2]) if len(sys.argv) > 2 else 4e-6
     g_normal = normal_grading(first, N_NORMAL, R)
     ys = thickness(XS)
-    arc_y = math.sqrt(R**2 - (XS - 1) ** 2)
+    # Far-field split at 120 deg (centre = TE): splitting straight above x = 0.3 left the aft
+    # arc 0.7 c long against 78 c in front, a ~180x cell-size jump at the block seam.
+    split = math.radians(SPLIT_DEG)
+    arc_x, arc_y = 1 + R * math.cos(split), R * math.sin(split)
     base = [
         (0.0, 0.0),  # 0 leading edge
         (XS, ys),  # 1 upper split
         (1.0, 0.0),  # 2 trailing edge
         (XS, -ys),  # 3 lower split
         (1 - R, 0.0),  # 4 far field front
-        (XS, arc_y),  # 5 far field above split
+        (arc_x, arc_y),  # 5 far field, upper split
         (1.0, R),  # 6 far field above TE
-        (XS, -arc_y),  # 7 far field below split
+        (arc_x, -arc_y),  # 7 far field, lower split
         (1.0, -R),  # 8 far field below TE
         (1 + R, 0.0),  # 9 wake end
         (1 + R, R),  # 10
@@ -94,20 +98,21 @@ def main() -> None:
     g_le = "8"  # front blocks: cells grow away from the leading edge
     g_te = "0.2"  # aft blocks: cells shrink toward the trailing edge
     g_wake = "200"
+    g_top = "20"  # outer wake edges: start near the aft far-field cell size, not the TE size
     blocks = [
         hexa((0, 1, 5, 4), (N_FRONT, N_NORMAL), (g_le, gn)),
         hexa((1, 2, 6, 5), (N_AFT, N_NORMAL), (g_te, gn)),
         hexa_edges(
             (2, 9, 10, 6),
             (N_WAKE, N_NORMAL),
-            f"{g_wake} {g_wake} {g_wake} {g_wake} {gn} {gfar} {gfar} {gn}",
+            f"{g_wake} {g_top} {g_top} {g_wake} {gn} {gfar} {gfar} {gn}",
         ),
         hexa((0, 4, 7, 3), (N_NORMAL, N_FRONT), (gn, g_le)),
         hexa((3, 7, 8, 2), (N_NORMAL, N_AFT), (gn, g_te)),
         hexa_edges(
             (2, 8, 11, 9),
             (N_NORMAL, N_WAKE),
-            f"{gn} {gfar} {gfar} {gn} {g_wake} {g_wake} {g_wake} {g_wake}",
+            f"{gn} {gfar} {gfar} {gn} {g_wake} {g_top} {g_top} {g_wake}",
         ),
     ]
 
@@ -115,7 +120,7 @@ def main() -> None:
         a = math.radians(angle_deg)
         return f"({1 + R * math.cos(a)!r} {R * math.sin(a)!r} {z})"
 
-    ang_split = math.degrees(math.atan2(arc_y, XS - 1))
+    ang_split = SPLIT_DEG
     edges = []
     for z, off in ((0.0, 0), (1.0, o)):
         edges.append(f"    spline {0 + off} {1 + off} ({spline(0, 1, 0.0, XS, 1).format(z=z)})")
@@ -149,8 +154,11 @@ def main() -> None:
             "defaultPatch\n{\n    name frontAndBack;\n    type empty;\n}\n",
             "boundary\n(\n"
             + "\n".join(
-                [patch("airfoil", "wall", airfoil), patch("inlet", "patch", inlet),
-                 patch("outlet", "patch", outlet)]
+                [
+                    patch("airfoil", "wall", airfoil),
+                    patch("inlet", "patch", inlet),
+                    patch("outlet", "patch", outlet),
+                ]
             )
             + "\n);\n",
         ]
