@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 
 from foamstudio import APP_LICENSE, __version__
 from foamstudio.app.settings import AppSettings
-from foamstudio.app.theme import load_icon, load_qss, mono_font
+from foamstudio.app.theme import load_icon, load_qss, ui_font
 from foamstudio.core.project import Project, ProjectError
 from foamstudio.core.project import create_project as create_project_at
 from foamstudio.core.project import open_project as open_project_at
@@ -294,7 +294,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if isinstance(app, QApplication):
             app.setStyleSheet(load_qss(model.theme))
-            app.setFont(mono_font(model.font_point_size))
+            app.setFont(ui_font(model.font_point_size))
         self._dark_action.blockSignals(True)
         self._light_action.blockSignals(True)
         self._expert_action.blockSignals(True)

@@ -38,6 +38,18 @@ def load_icon() -> QIcon:
     return icon
 
 
+def ui_font(point_size: int) -> QFont:
+    """Proportional system UI font for menus, labels, forms. Mono stays for logs/code."""
+    font = QFont()
+    font.setFamilies(
+        ["Segoe UI", ".AppleSystemUIFont", "SF Pro Text", "Noto Sans", "Ubuntu", "DejaVu Sans"]
+    )
+    font.setPointSize(point_size)
+    font.setStyleHint(QFont.StyleHint.SansSerif)
+    font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
+    return font
+
+
 def mono_font(point_size: int) -> QFont:
     font = QFont()
     font.setFamilies(

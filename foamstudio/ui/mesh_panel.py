@@ -70,6 +70,7 @@ class MeshPanel(QWidget):
         self.patches.setObjectName("patchRoles")
         self.patches.setHorizontalHeaderLabels([self.tr("Patch"), self.tr("Role")])
         self.patches.horizontalHeader().setStretchLastSection(True)
+        self.patches.setMinimumHeight(160)
         self.send_button = QPushButton(self.tr("Send patch roles to Setup"))
         self.send_button.setObjectName("sendPatchRoles")
         self.send_button.setEnabled(False)
