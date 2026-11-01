@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generator": "2.2.1",
+  "generator": "2.2.2",
   "openfoamVersion": 2412,
   "caseName": "backward-facing-step",
   "state": {

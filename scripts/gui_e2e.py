@@ -491,7 +491,12 @@ if HAS_PVPYTHON:
         shutil.copy(png, OUT / "11_pvpython_report.png")
 else:
     check("Results > Export with pvpython", True, "SKIP: pvpython not installed")
-check("ParaView script uses /mnt paths for WSL runtime", "/mnt/" in script and "C:" not in script)
+if RT["kind"] == "wsl":
+    check(
+        "ParaView script uses /mnt paths for WSL runtime", "/mnt/" in script and "C:" not in script
+    )
+else:
+    check("ParaView script uses host paths for native runtime", "/mnt/" not in script)
 tree("Reports")
 rpt = win.properties_dock.widget()
 rpt.html_button.click()
