@@ -24,6 +24,7 @@ function invariants(name, files) {
     if (/^FoamFile/m.test(t) && (t.match(/\{/g) || []).length !== (t.match(/\}/g) || []).length) fail(`${name} ${p}: unbalanced braces`);
     if (p.endsWith('fvSchemes') && /nuEff\*dev\(/.test(t)) fail(`${name} ${p}: uses dev( instead of dev2(`);
     if (/\/Allrun$/.test(p) && !/^#!\/bin\/sh/.test(t)) fail(`${name} ${p}: Allrun without shebang`);
+    if (p.endsWith('0/nuTilda') && /\b(wall|walls|airfoil)\s*\{\s*type\s+fixedValue;\s*value\s+uniform\s+(?!0;)/.test(t)) fail(`${name} ${p}: nonzero nuTilda on a wall`);
     if (p.endsWith('case.json')) { try { JSON.parse(t); } catch (e) { fail(`${name} case.json invalid JSON`); } }
   }
 }

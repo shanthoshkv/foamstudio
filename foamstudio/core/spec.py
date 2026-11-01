@@ -10,7 +10,7 @@ import json
 from typing import Any, cast
 
 SPEC_SCHEMA = 1
-GENERATOR_VERSION = "2.2.3"
+GENERATOR_VERSION = "2.2.4"
 
 
 class SpecError(Exception):
@@ -24,7 +24,7 @@ class SpecError(Exception):
 
 def load_spec(text: str) -> dict[str, Any]:
     try:
-        data: object = json.loads(text)
+        data: object = json.loads(text.removeprefix(chr(0xFEFF)))
     except json.JSONDecodeError as exc:
         raise SpecError(
             f"case.json is not valid JSON: {exc}",

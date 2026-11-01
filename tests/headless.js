@@ -74,7 +74,7 @@ if (require.main === module) {
         process.exit(2);
       }
       const g = loadGenerator();
-      const spec = JSON.parse(fs.readFileSync(specPath, 'utf8'));
+      const spec = JSON.parse(fs.readFileSync(specPath, 'utf8').replace(String.fromCharCode(0xfeff), ''));
       const name = argValue(args, '--name') || spec.caseName || 'case';
       g.ctx.applySpec(spec);
       process.stdout.write(JSON.stringify(g.buildCaseFiles(name)));

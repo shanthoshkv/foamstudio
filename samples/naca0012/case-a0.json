@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "generator": "2.2.3",
+  "generator": "2.2.4",
   "openfoamVersion": 2412,
   "caseName": "naca0012-a0",
   "state": {

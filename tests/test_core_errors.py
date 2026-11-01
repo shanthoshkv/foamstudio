@@ -61,6 +61,7 @@ def test_bad_case_json_is_explained(text: str, message: str) -> None:
 
 def test_good_case_json_loads() -> None:
     assert load_spec(_spec())["caseName"] == "c"
+    assert load_spec(chr(0xFEFF) + _spec())["caseName"] == "c"  # PowerShell utf8 BOM
 
 
 def test_project_folder_errors(tmp_path: Path) -> None:
