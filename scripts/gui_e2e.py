@@ -321,8 +321,22 @@ for kind in ("box", "channel", "wedge"):
 
 # ---- 11. Run with the generator default case + channel mesh ----
 mp.kind.setCurrentText("channel")
+mp.nx.setValue(30)
+mp.ny.setValue(12)
 mp.write_button.click()
 pump(2)
+bmd = (proj / "case/system/blockMeshDict").read_text()
+check("Mesh panel sizes reach blockMeshDict", "(30 12 1)" in bmd)
+locked = [
+    mp.patches.cellWidget(i, 0).text()
+    for i in range(mp.patches.rowCount())
+    if not mp.patches.cellWidget(i, 1).isEnabled()
+]
+check(
+    "Constraint patches (empty) are locked in the role table",
+    sorted(locked) == ["zMax", "zMin"],
+    str(locked),
+)
 win._setup.write_button.click()
 wait(lambda: "Writing" not in status(), 60)
 pump(2)
@@ -354,6 +368,25 @@ check(
     f"status={status()} :: {tail[-250:]}",
 )
 shot("08_run_default")
+# role edit -> send -> write case
+for i in range(mp.patches.rowCount()):
+    if mp.patches.cellWidget(i, 0).text() == "outlet":
+        mp.patches.cellWidget(i, 1).setCurrentText("opening")
+tree("Mesh")
+win.properties_dock.widget().send_button.click()
+pump(2)
+win._setup.write_button.click()
+wait(lambda: "Writing" not in status(), 60)
+pump(2)
+roles = {
+    p["name"]: p["role"]
+    for p in json.loads((proj / "case/case.json").read_text())["state"]["patches"]
+}
+check(
+    "Patch role edit + Send to Setup reaches case.json",
+    roles.get("outlet") == "opening",
+    str(roles),
+)
 
 # ---- 12. Run the cavity (known-good spec) then Stop ----
 cav = WORK / "cav"
@@ -406,6 +439,13 @@ wait(
     0.5,
 )
 pump(8)
+timer = getattr(win, "_residual_timer", None)
+check(
+    "Live residuals update while the solver runs",
+    timer is not None
+    and timer.isActive()
+    and type(win.console_tabs.widget(1)).__name__ == "ResidualPlot",
+)
 rp.stop_button.click()
 ok = wait(lambda: win._solver is not None and not win._solver.isRunning(), 60, 0.5)
 left = subprocess.run(
@@ -428,6 +468,16 @@ check(
     (cav / "case" / "pvpython_export.py").exists() and status() == "ParaView state written",
 )
 script = (cav / "case" / "pvpython_export.py").read_text()
+win.properties_dock.widget().render_button.click()
+ok = wait(lambda: status() == "ParaView export finished", 240, 1)
+png = cav / "case" / "report.png"
+check(
+    "Results > Export with pvpython (real WSL pvpython)",
+    ok and png.exists() and png.stat().st_size > 10_000 and (cav / "case" / "case.pvsm").exists(),
+    f"status={status()} png={png.stat().st_size if png.exists() else 0}",
+)
+if png.exists():
+    shutil.copy(png, OUT / "11_pvpython_report.png")
 check("ParaView script uses /mnt paths for WSL runtime", "/mnt/" in script and "C:" not in script)
 tree("Reports")
 rpt = win.properties_dock.widget()

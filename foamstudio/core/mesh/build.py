@@ -118,17 +118,17 @@ def _wedge(length: float, radius: float, angle_deg: float, cells: tuple[int, int
     nx, nr, _nz = cells
     y = radius * sine
     z = radius * cosine
-    # The axis vertices are repeated. OpenFOAM accepts that for a wedge from r = 0.
+    # Collapsed axis: hex (0 1 2 3 0 1 4 5) repeats the axis *labels* (duplicate points
+    # fail checkMesh), so the axis faces vanish. repr() keeps full precision; rounded
+    # coordinates make the wedge faces non-planar.
     vertices = "\n".join(
         [
             "    (0 0 0)",
-            f"    ({_num(length)} 0 0)",
-            f"    ({_num(length)} {_num(y)} {_num(z)})",
-            f"    (0 {_num(y)} {_num(z)})",
-            "    (0 0 0)",
-            f"    ({_num(length)} 0 0)",
-            f"    ({_num(length)} {_num(-y)} {_num(z)})",
-            f"    (0 {_num(-y)} {_num(z)})",
+            f"    ({length!r} 0 0)",
+            f"    ({length!r} {y!r} {z!r})",
+            f"    (0 {y!r} {z!r})",
+            f"    ({length!r} {-y!r} {z!r})",
+            f"    (0 {-y!r} {z!r})",
         ]
     )
     return (
@@ -137,16 +137,16 @@ def _wedge(length: float, radius: float, angle_deg: float, cells: tuple[int, int
         f"{vertices}\n"
         ");\n\n"
         "blocks\n(\n"
-        f"    hex (0 1 2 3 4 5 6 7) ({nx} {nr} 1) simpleGrading (1 1 1)\n"
+        f"    hex (0 1 2 3 0 1 4 5) ({nx} {nr} 1) simpleGrading (1 1 1)\n"
         ");\n\n"
         "edges\n(\n);\n\n"
         "boundary\n(\n"
-        f"{_patch('inlet', 'patch', '(0 4 7 3)')}\n"
-        f"{_patch('outlet', 'patch', '(1 2 6 5)')}\n"
-        f"{_patch('walls', 'wall', '(3 7 6 2)')}\n"
-        f"{_patch('axis', 'empty', '(0 1 5 4)')}\n"
+        f"{_patch('inlet', 'patch', '(0 0 5 3)')}\n"
+        f"{_patch('outlet', 'patch', '(1 2 4 1)')}\n"
+        f"{_patch('walls', 'wall', '(3 5 4 2)')}\n"
+        f"{_patch('axis', 'empty', '(0 1 1 0)')}\n"
         f"{_patch('wedgeFront', 'wedge', '(0 3 2 1)')}\n"
-        f"{_patch('wedgeBack', 'wedge', '(4 5 6 7)')}\n"
+        f"{_patch('wedgeBack', 'wedge', '(0 1 4 5)')}\n"
         ");\n\n"
         "mergePatchPairs\n(\n);\n"
     )

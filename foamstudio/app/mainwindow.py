@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -113,6 +113,7 @@ class MainWindow(QMainWindow):
         self._viewer3d: Viewer3D | None = None
         self._jobs = None
         self._solver: _Background | None = None
+        self._render: _Background | None = None
         self._writer: _Background | None = None
         self._write_action: QAction | None = None
         self.setWindowTitle(self.tr("FoamStudio"))
@@ -632,6 +633,9 @@ class MainWindow(QMainWindow):
             self._mesh_panel.write_button.clicked.connect(
                 lambda _checked=False: self.write_block_mesh()
             )
+            self._mesh_panel.send_button.clicked.connect(
+                lambda _checked=False: self.send_patch_roles()
+            )
         self.properties_dock.setWidget(self._mesh_panel)
 
     def write_block_mesh(self) -> None:
@@ -648,7 +652,7 @@ class MainWindow(QMainWindow):
             return
         kind = self._mesh_panel.kind.currentText()
         try:
-            text = block_mesh_dict(kind)
+            text = block_mesh_dict(kind, **self._mesh_panel.params())  # type: ignore[arg-type]
         except MeshFailure as exc:
             logger.error("%s", exc)
             return
@@ -658,7 +662,14 @@ class MainWindow(QMainWindow):
         logger.info("Wrote %s", target)
         self.statusBar().showMessage(self.tr("blockMeshDict written"))
         # The case's boundary conditions must name the same patches as the mesh.
-        rows = patch_rows(text)
+        self._mesh_panel.set_patches(patch_rows(text))
+        self.send_patch_roles()
+
+    def send_patch_roles(self) -> None:
+        """Push the (possibly edited) patch roles from the Mesh panel into the generator."""
+        if self._mesh_panel is None:
+            return
+        rows = self._mesh_panel.patch_rows()
         session = None if self._setup is None else self._setup.session
         if session is not None and os.environ.get("FOAMSTUDIO_HEADLESS") != "1":
             try:
@@ -723,6 +734,24 @@ class MainWindow(QMainWindow):
         self._solver.ok.connect(self._solver_ok)
         self._solver.failed.connect(self._solver_fail)
         self._solver.start()
+        # Live residuals: re-read the solver log while the job runs.
+        self._residual_timer = QTimer(self)
+        self._residual_timer.timeout.connect(self._refresh_residuals)
+        self._residual_timer.start(2000)
+
+    def _refresh_residuals(self) -> None:
+        # ponytail: re-parses the whole log each tick; tail-follow if logs reach 100s of MB
+        if self._project is None or self._run_panel is None:
+            return
+        solver = self._run_panel.solver.text().strip() or "simpleFoam"
+        log = self._project.case_dir / f"log.{solver}"
+        if log.is_file():
+            self.show_residuals(log.read_text(encoding="utf-8", errors="replace"))
+
+    def _stop_residual_timer(self) -> None:
+        timer = getattr(self, "_residual_timer", None)
+        if timer is not None:
+            timer.stop()
 
     def stop_solver(self) -> None:
         queue = self._jobs
@@ -738,21 +767,22 @@ class MainWindow(QMainWindow):
     def _solver_ok(self, result: object) -> None:
         logger.info("%s", result)
         self.statusBar().showMessage(self.tr("Run finished"))
-        if self._project is not None and self._run_panel is not None:
-            solver = self._run_panel.solver.text().strip() or "simpleFoam"
-            log = self._project.case_dir / f"log.{solver}"
-            if log.is_file():
-                self.show_residuals(log.read_text(encoding="utf-8", errors="replace"))
+        self._stop_residual_timer()
+        self._refresh_residuals()
 
     def _solver_fail(self, message: str) -> None:
         logger.error("%s", message)
         self.statusBar().showMessage(self.tr("Run failed"))
+        self._stop_residual_timer()
 
     def _show_post_panel(self) -> None:
         if self._post_panel is None:
             self._post_panel = PostPanel(self)
             self._post_panel.export_button.clicked.connect(
                 lambda _checked=False: self.write_paraview_state()
+            )
+            self._post_panel.render_button.clicked.connect(
+                lambda _checked=False: self.render_paraview()
             )
         self.properties_dock.setWidget(self._post_panel)
 
@@ -784,6 +814,42 @@ class MainWindow(QMainWindow):
         )
         logger.info("Wrote %s; run it with pvpython to create %s", script, state)
         self.statusBar().showMessage(self.tr("ParaView state written"))
+
+    def render_paraview(self) -> None:
+        """Run pvpython_export.py through the saved runtime (pvpython must be on its PATH)."""
+        from foamstudio.core.jobs import JobQueue
+        from foamstudio.core.runtime import bind
+
+        self.write_paraview_state()
+        if self._project is None:
+            return
+        installation = self._store.load_runtime()
+        if installation is None:
+            logger.error("No runtime is saved.\n\nTools → Runtimes... and choose an installation.")
+            return
+        queue = JobQueue(bind(installation), self._project.case_dir)
+        queue.add(
+            "pvpython --force-offscreen-rendering pvpython_export.py > log.pvpython 2>&1"
+            " || { tail -n 30 log.pvpython ; exit 1 ; }",
+            name="pvpython",
+        )
+        case = self._project.case_dir
+
+        def work() -> str:
+            job = queue.run_blocking(live=True)[0]
+            if job.status != "succeeded":
+                raise RuntimeError(f"pvpython failed.\n{job.log_tail}\n\n{job.suggestion}")
+            return f"Wrote {case / (case.name + '.pvsm')} and {case / 'report.png'}"
+
+        self.statusBar().showMessage(self.tr("Running pvpython..."))
+        self._render = _Background(work, self)
+        self._render.ok.connect(self._render_done)
+        self._render.failed.connect(lambda message: logger.error("%s", message))
+        self._render.start()
+
+    def _render_done(self, result: object) -> None:
+        logger.info("%s", result)
+        self.statusBar().showMessage(self.tr("ParaView export finished"))
 
     def _show_report_panel(self) -> None:
         if self._report_panel is None:
@@ -847,8 +913,9 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         if self._writer is not None and self._writer.isRunning():
             self._writer.wait(3000)
-        if self._solver is not None and self._solver.isRunning():
-            self._solver.wait(3000)
+        for worker in (self._solver, self._render):
+            if worker is not None and worker.isRunning():
+                worker.wait(3000)
         if self._log_handler is not None:
             logger.removeHandler(self._log_handler)
             self._log_handler = None

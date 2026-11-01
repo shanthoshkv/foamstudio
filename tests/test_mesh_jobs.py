@@ -224,3 +224,13 @@ def test_allrun_steps_write_logs_like_run_application(tmp_path: Path) -> None:
     assert "mpirun -np 2 simpleFoam -parallel" in solver and "> log.simpleFoam 2>&1" in solver
     assert "$" not in "".join(job.command for job in queue.jobs)
     assert logged("checkMesh", "checkMesh").endswith("|| { tail -n 40 log.checkMesh ; exit 1 ; }")
+
+
+def test_wedge_collapses_axis_by_repeated_labels() -> None:
+    from foamstudio.core.mesh import block_mesh_dict
+
+    text = block_mesh_dict("wedge", length=1, radius=0.1, cells=(40, 10, 1))
+    vertices = text.split("vertices\n(\n", 1)[1].split(");", 1)[0].strip().splitlines()
+    assert len(vertices) == 6  # duplicate axis points made checkMesh fail (non-planar wedge)
+    assert "hex (0 1 2 3 0 1 4 5)" in text
+    assert "(0 1 1 0)" in text  # degenerate axis face

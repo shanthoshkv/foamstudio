@@ -79,14 +79,26 @@ def pvpython_script(
     foam = _script_path(foam_file, wsl)
     picture = _script_path(image, wsl)
     save = f'SaveState("{_script_path(state, wsl)}")\n' if state else ""
+    lines = [
+        "from paraview.simple import (ColorBy, GetActiveViewOrCreate, GetAnimationScene,",
+        "    OpenFOAMReader, ResetCamera, SaveScreenshot, SaveState, Show)",
+        f'reader = OpenFOAMReader(FileName="{foam}")',
+        "scene = GetAnimationScene()",
+        "scene.UpdateAnimationUsingDataTimeSteps()",
+        "scene.AnimationTime = reader.TimestepValues[-1] if reader.TimestepValues else 0",
+        "view = GetActiveViewOrCreate('RenderView')",
+        "display = Show(reader, view)",
+        "if 'U' in reader.CellArrays:",
+        "    ColorBy(display, ('CELLS', 'U', 'Magnitude'))",
+        "    display.RescaleTransferFunctionToDataRange(True)",
+        "    display.SetScalarBarVisibility(view, True)",
+        "ResetCamera(view)",
+    ]
     return (
-        "from paraview.simple import GetActiveViewOrCreate, OpenFOAMReader, "
-        "SaveScreenshot, SaveState, Show\n"
-        f'reader = OpenFOAMReader(FileName="{foam}")\n'
-        "Show(reader)\n"
-        "view = GetActiveViewOrCreate('RenderView')\n"
-        f"{save}"
-        f'SaveScreenshot("{picture}", view)\n'
+        "\n".join(lines)
+        + "\n"
+        + save
+        + (f'SaveScreenshot("{picture}", view, ImageResolution=[1280, 800])\n')
     )
 
 
