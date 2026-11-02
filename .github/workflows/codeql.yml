@@ -13,6 +13,8 @@ permissions:
 
 jobs:
   analyze:
+    # Code scanning on a private repo needs GitHub Advanced Security (paid).
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false

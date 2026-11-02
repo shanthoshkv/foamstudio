@@ -25,6 +25,9 @@ jobs:
     needs: quality
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    env:
+      # Private-repo runners have 2 vCPUs (1 core); OpenMPI counts cores, so -np 2 needs this.
+      OMPI_MCA_rmaps_base_oversubscribe: "1"
     strategy:
       fail-fast: false
       matrix:
