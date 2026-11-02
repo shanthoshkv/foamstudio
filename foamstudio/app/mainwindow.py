@@ -11,6 +11,7 @@ import time
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence
@@ -36,6 +37,9 @@ from foamstudio.core.project import Project, ProjectError
 from foamstudio.core.project import create_project as create_project_at
 from foamstudio.core.project import open_project as open_project_at
 from foamstudio.core.runtime.model import Installation
+
+if TYPE_CHECKING:
+    from foamstudio.core.jobs import JobQueue
 from foamstudio.core.settings_model import (
     DEFAULT_FONT_PT,
     MAX_FONT_PT,
@@ -538,6 +542,40 @@ class MainWindow(QMainWindow):
         self._project = project
         self.setWindowTitle(f"{self.tr('FoamStudio')} — {project.root.name}")
         self.project_dock.setToolTip(str(project.root))
+        self._reattach()
+
+    def _detached_queue(self) -> JobQueue | None:
+        from foamstudio.core.jobs import JobQueue
+        from foamstudio.core.runtime import bind
+        from foamstudio.core.runtime.paths import DETACHED
+
+        assert self._project is not None
+        marker = self._project.case_dir / DETACHED
+        installation = self._project_runtime() or self._store.load_runtime()
+        if not marker.is_file() or installation is None:
+            return None
+        queue = JobQueue(bind(installation), self._project.case_dir)
+        queue.pid = int(json.loads(marker.read_text(encoding="utf-8"))["pid"])
+        return queue
+
+    def _reattach(self) -> bool:
+        """A background run started before FoamStudio closed: follow its log again."""
+        from foamstudio.core.runtime.paths import DETACHED
+
+        assert self._project is not None
+        case = self._project.case_dir
+        marker = case / DETACHED
+        logs = sorted(case.glob("log.*"), key=lambda p: p.stat().st_mtime)
+        if not marker.is_file() or not logs or time.time() - logs[-1].stat().st_mtime > 300:
+            return False
+        if self._run_panel is None:
+            self._show_run_panel()
+        self._residual_timer = QTimer(self)
+        self._residual_timer.timeout.connect(self._refresh_residuals)
+        self._residual_timer.start(2000)
+        self.statusBar().showMessage(self.tr("Reattached to a background run"))
+        logger.info("Reattached to the background run in %s", case)
+        return True
 
     def _report_project_error(self, exc: ProjectError) -> None:
         logger.error("%s", exc)
@@ -920,6 +958,18 @@ class MainWindow(QMainWindow):
                 mesh="snappyHexMesh" if snappy else "blockMesh",
             )
         self._jobs = queue
+        if self._run_panel.detached.isChecked() and not commands and not resume:
+            try:
+                pid = queue.launch_detached(logged("bash ./Allrun", "Allrun"))
+            except Exception as exc:
+                logger.error("%s", exc)
+                return
+            logger.info("Background Allrun started (pid %s); it keeps running if you close", pid)
+            self.statusBar().showMessage(self.tr("Running in the background"))
+            self._residual_timer = QTimer(self)
+            self._residual_timer.timeout.connect(self._refresh_residuals)
+            self._residual_timer.start(2000)
+            return
         self._run_started = time.time()
         self._run_label = ", ".join(job.name for job in queue.jobs)
         logger.info("Running %s", self._run_label)
@@ -966,6 +1016,8 @@ class MainWindow(QMainWindow):
 
     def stop_solver(self) -> None:
         queue = self._jobs
+        if queue is None and self._project is not None:
+            queue = self._detached_queue()
         if queue is None:
             logger.error("There is no solver job to stop.\n\nRun the case before using Stop.")
             return
@@ -1215,6 +1267,62 @@ class MainWindow(QMainWindow):
             return ""
         return self._view().show_case(self._project.case_dir, field or None)
 
+    def show_streamlines(self) -> str:
+        return "" if self._project is None else self._view().streamlines(self._project.case_dir)
+
+    def animate_field(self, field: str) -> str:
+        return "" if self._project is None else self._view().animate(self._project.case_dir, field)
+
+    def line_plot(self, field: str, a: tuple[float, ...], b: tuple[float, ...]) -> Path | None:
+        """Probe along a-b: plot in a dialog and write <case>/line_<field>.csv."""
+        if self._project is None:
+            return None
+        from foamstudio.core.workspace import export_csv
+
+        try:
+            distance, values = self._view().line_values(self._project.case_dir, field, a, b)
+        except Exception as exc:
+            logger.error("Line plot failed: %s", exc)
+            self.statusBar().showMessage(f"Line plot failed: {exc}")
+            return None
+        path = export_csv(
+            {"distance": distance, field: values}, self._project.case_dir / f"line_{field}.csv"
+        )
+        try:
+            import pyqtgraph as pg
+            from PySide6.QtWidgets import QDialog, QVBoxLayout
+
+            dialog = QDialog(self)
+            dialog.setWindowTitle(f"{field} along the line")
+            plot = pg.PlotWidget()
+            plot.plot(distance, values)
+            plot.setLabel("bottom", "distance")
+            plot.setLabel("left", field)
+            QVBoxLayout(dialog).addWidget(plot)
+            dialog.resize(700, 450)
+            dialog.show()
+        except Exception as exc:
+            logger.info("Line plot window skipped: %s", exc)
+        self.statusBar().showMessage(self.tr("Line data written to %1").replace("%1", str(path)))
+        return path
+
+    def run_demo(self) -> Project | None:
+        """Lid-driven cavity in ~/FoamStudio/demo-cavity, then run it."""
+        from foamstudio.core.workspace import templates
+
+        spec = templates().get("cavity/case")
+        if spec is None:
+            self.statusBar().showMessage(self.tr("The cavity sample is not installed."))
+            return None
+        root = Path.home() / "FoamStudio" / f"demo-cavity-{time.strftime('%Y%m%d-%H%M%S')}"
+        project = self.create_from_spec(root, spec)
+        if project is not None:
+            self._show_run_panel()
+            if self._run_panel is not None:
+                self._run_panel.processes.setValue(1)  # 4k cells: serial is fastest
+            self.start_solver()
+        return project
+
     def save_plots(self) -> list[Path]:
         plot = self._residual_plot
         if self._project is None or plot is None:
@@ -1251,9 +1359,11 @@ class MainWindow(QMainWindow):
             return None
         try:
             write_spec_file(project, spec, app_version=__version__)
-            mesh = sorted(spec.parent.glob("blockMeshDict*"))
-            if mesh:
-                (project.case_dir / "system" / "blockMeshDict").write_bytes(mesh[0].read_bytes())
+            # case-axi.json -> blockMeshDict-axi, case.json -> blockMeshDict
+            variant = spec.parent / f"blockMeshDict{spec.stem.removeprefix('case')}"
+            mesh = variant if variant.is_file() else spec.parent / "blockMeshDict"
+            if mesh.is_file():
+                (project.case_dir / "system" / "blockMeshDict").write_bytes(mesh.read_bytes())
         except Exception as exc:
             logger.error("%s", exc)
             return None

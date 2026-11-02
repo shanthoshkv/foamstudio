@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -33,6 +34,8 @@ class RunPanel(QWidget):
         self.end_time = QLineEdit()
         self.end_time.setObjectName("continueEndTime")
         self.end_time.setPlaceholderText(self.tr("End time (blank keeps controlDict)"))
+        self.detached = QCheckBox(self.tr("Keep running if FoamStudio closes"))
+        self.detached.setObjectName("runDetached")
         self.info = QLabel(self.tr("No mesh yet."))
         self.info.setObjectName("runInfo")
         self.info.setWordWrap(True)
@@ -51,6 +54,7 @@ class RunPanel(QWidget):
         layout.addWidget(self.processes)
         layout.addLayout(buttons)
         layout.addWidget(self.end_time)
+        layout.addWidget(self.detached)
         layout.addWidget(self.info)
         layout.addWidget(self.note)
         layout.addStretch(1)

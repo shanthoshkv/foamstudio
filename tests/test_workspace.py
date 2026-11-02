@@ -115,3 +115,18 @@ def test_dictionary_checks() -> None:
     assert check_dictionary("a 1;\nb\n{\n    c 2;\n}\n") == []
     problems = check_dictionary("a 1\nb {\n")
     assert any("missing ';'" in p for p in problems) and any("Unbalanced" in p for p in problems)
+
+
+def test_block_vertices(tmp_path: Path) -> None:
+    from foamstudio.core.mesh import block_mesh_dict
+
+    (tmp_path / "system").mkdir()
+    mesh = tmp_path / "system" / "blockMeshDict"
+    mesh.write_text(block_mesh_dict("box", length=1, height=1, width=0.1, cells=(4, 4, 1)))
+    points = ws.block_vertices(tmp_path)
+    assert len(points) == 8 and points[6] == (1.0, 1.0, 0.1)
+    ws.set_block_vertices(tmp_path, [(x * 2, y, z) for x, y, z in points])
+    assert ws.block_vertices(tmp_path)[6] == (2.0, 1.0, 0.1)
+    assert "blocks" in mesh.read_text()
+    with pytest.raises(ValueError):
+        ws.set_block_vertices(tmp_path, points[:4])

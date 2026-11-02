@@ -185,6 +185,86 @@ class Viewer3D(QWidget):
             self.summary.setText(text)
         return text
 
+    def _reader(self, case: object) -> object:
+        from pathlib import Path
+
+        import pyvista as pv
+
+        marker = Path(str(case)) / "case.foam"
+        marker.touch()
+        return pv.OpenFOAMReader(str(marker))
+
+    def streamlines(self, case: object, seeds: int = 200) -> str:
+        """Streamlines of U at the latest time, seeded from random internal points."""
+        if not viewer_enabled():
+            return "Streamlines need the 3D view."
+        try:
+            reader = self._reader(case)
+            reader.set_active_time_value(reader.time_values[-1])  # type: ignore[attr-defined]
+            mesh = reader.read()["internalMesh"].cell_data_to_point_data()  # type: ignore[attr-defined]
+            lines = mesh.streamlines(vectors="U", n_points=seeds, source_radius=mesh.length / 4)
+            plot = self._plotter()
+            plot.clear()  # type: ignore[attr-defined]
+            plot.add_mesh(mesh.outline(), color="grey")  # type: ignore[attr-defined]
+            plot.add_mesh(lines.tube(radius=mesh.length / 800), scalars="U")  # type: ignore[attr-defined]
+            plot.reset_camera()  # type: ignore[attr-defined]
+            text = f"{lines.n_lines} streamlines of U"
+        except Exception as exc:
+            text = f"Streamlines failed: {exc}"
+        self.summary.setText(text)
+        return text
+
+    def line_values(
+        self, case: object, field: str, a: tuple[float, ...], b: tuple[float, ...], n: int = 200
+    ) -> tuple[list[float], list[float]]:
+        """Probe: field (or its magnitude) along the segment a-b at the latest time."""
+        import numpy as np
+
+        reader = self._reader(case)
+        reader.set_active_time_value(reader.time_values[-1])  # type: ignore[attr-defined]
+        mesh = reader.read()["internalMesh"]  # type: ignore[attr-defined]
+        line = mesh.sample_over_line(a, b, resolution=n - 1)
+        values = np.asarray(line[field])
+        if values.ndim > 1:
+            values = np.linalg.norm(values, axis=1)
+        distance = np.linspace(0.0, float(np.linalg.norm(np.subtract(b, a))), len(values))
+        return distance.tolist(), values.tolist()
+
+    def animate(self, case: object, field: str, interval_ms: int = 400) -> str:
+        """Step the field through every written time on a QTimer."""
+        from PySide6.QtCore import QTimer
+
+        if not viewer_enabled():
+            return "Animation needs the 3D view."
+        try:
+            reader = self._reader(case)
+            times = list(reader.time_values)  # type: ignore[attr-defined]
+        except Exception as exc:
+            return f"Animation failed: {exc}"
+        if not times:
+            return "No time directories to animate."
+        frames = iter(times)
+        timer = QTimer(self)
+
+        def step() -> None:
+            try:
+                t = next(frames)
+            except StopIteration:
+                timer.stop()
+                return
+            reader.set_active_time_value(t)  # type: ignore[attr-defined]
+            mesh = reader.read()["internalMesh"]  # type: ignore[attr-defined]
+            plot = self._plotter()
+            plot.clear()  # type: ignore[attr-defined]
+            if field in mesh.array_names:
+                plot.add_mesh(mesh, scalars=field)  # type: ignore[attr-defined]
+            self.summary.setText(f"{field} at t = {t:g}")
+
+        timer.timeout.connect(step)
+        timer.start(interval_ms)
+        self._animation = timer
+        return f"Animating {field} over {len(times)} times"
+
     def show_tool(self, tool: str) -> None:
         """Interactive PyVista plane widgets: drag the plane to clip or slice the surface."""
         plot, mesh = self._plot, self._mesh

@@ -382,6 +382,32 @@ def edit_boundary(case: Path, name: str, *, new_name: str | None, new_type: str 
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
+_VERTICES = re.compile(r"(\bvertices\s*\()(.*?)(\n\s*\);)", re.S)
+_POINT = re.compile(r"\(\s*([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s*\)")
+
+
+def block_vertices(case: Path) -> list[tuple[float, float, float]]:
+    """Numeric vertices of system/blockMeshDict (macros/#calc are not supported)."""
+    path = case / "system" / "blockMeshDict"
+    found = _VERTICES.search(path.read_text(encoding="utf-8")) if path.is_file() else None
+    if found is None:
+        return []
+    return [(float(x), float(y), float(z)) for x, y, z in _POINT.findall(found.group(2))]
+
+
+def set_block_vertices(case: Path, points: list[tuple[float, float, float]]) -> None:
+    """Replace the vertex list; the count must stay the same (blocks index into it)."""
+    if len(points) != len(block_vertices(case)):
+        raise ValueError("Edit vertices in place: adding or removing them breaks the blocks.")
+    path = case / "system" / "blockMeshDict"
+    text = path.read_text(encoding="utf-8")
+    body = "\n" + "\n".join(f"    ({x!r} {y!r} {z!r})" for x, y, z in points)
+    found = _VERTICES.search(text)
+    assert found is not None
+    text = text[: found.start(2)] + body + text[found.end(2) :]
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
 @dataclass(frozen=True)
 class CheckRow:
     name: str

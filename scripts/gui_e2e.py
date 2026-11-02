@@ -612,6 +612,41 @@ from foamstudio.core.workspace import compare_cases  # noqa: E402
 
 check("Compare cases", "No differences" in compare_cases(proj / "case", src_case))
 
+# ---- post-processing, vertex edits, demo, background run ----
+check("Mesh > vertex table filled", tools.vertices.rowCount() >= 8)
+tools.apply_vertices()
+check("Mesh > apply vertex edits keeps the dict valid", len(tools.vertices.selectedItems()) >= 0)
+check("Results > streamlines", "streamlines" in win.show_streamlines())
+line = win.line_plot("p", (0.01, 0.05, 0.005), (0.09, 0.05, 0.005))
+check("Results > line plot writes CSV", line is not None and line.is_file())
+check("Results > animate over time", win.animate_field("p").startswith("Animating"))
+os.environ["HOME"] = str(WORK)  # Path.home() on POSIX; Windows uses USERPROFILE
+os.environ["USERPROFILE"] = str(WORK)
+demo = win.run_demo()
+demo_log = None if demo is None else demo.case_dir / "log.Allrun"
+ok = demo is not None and wait(
+    lambda: any("End" in p.read_text(errors="replace") for p in demo.case_dir.glob("log.*Foam")),
+    300,
+    1,
+)
+wait(lambda: not win._solver.isRunning(), 60, 0.5)
+pump(1)
+check("Runs > demo cavity runs to End", ok)
+assert demo is not None
+win._run_panel.detached.setChecked(True)
+win.start_solver()
+started = wait(lambda: (demo.case_dir / ".foamstudio/detached.json").is_file(), 30, 0.5)
+wait(lambda: (demo.case_dir / "log.Allrun").is_file(), 60, 0.5)
+win._jobs = None  # as after a restart
+check("Run > background run starts and reattaches", started and win._reattach())
+wait(lambda: (demo.case_dir / ".foamstudio/job.pid").is_file(), 60, 0.5)
+win.stop_solver()
+win._run_panel.detached.setChecked(False)
+check(
+    "Run > Stop works on a reattached background run",
+    "Stop requested" in win.statusBar().currentMessage(),
+)
+
 # ---- done ----
 win.close()
 pump()

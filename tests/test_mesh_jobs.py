@@ -225,8 +225,15 @@ def test_allrun_steps_write_logs_like_run_application(tmp_path: Path) -> None:
     queue = JobQueue(bind(_NATIVE, _Probe()), tmp_path)
     queue.add_allrun("simpleFoam", parallel=2, mesh="blockMesh")
     names = [job.name for job in queue.jobs]
-    assert names == ["blockMesh", "checkMesh", "decomposePar", "simpleFoam", "reconstructPar"]
-    solver = queue.jobs[3].command
+    assert names == [
+        "blockMesh",
+        "checkMesh",
+        "foamDictionary",
+        "decomposePar",
+        "simpleFoam",
+        "reconstructPar",
+    ]
+    solver = queue.jobs[4].command
     assert "mpirun -np 2 simpleFoam -parallel" in solver and "> log.simpleFoam 2>&1" in solver
     assert "$" not in "".join(job.command for job in queue.jobs)
     assert logged("checkMesh", "checkMesh").endswith("|| { tail -n 40 log.checkMesh ; exit 1 ; }")

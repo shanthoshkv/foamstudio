@@ -11,7 +11,7 @@ from pathlib import Path
 from foamstudio.core.runinfo import explain
 from foamstudio.core.runtime.base import BoundRuntime
 from foamstudio.core.runtime.model import CommandResult, Installation, RuntimeFailure, log_tail
-from foamstudio.core.runtime.paths import JOB_PID, launch_env
+from foamstudio.core.runtime.paths import DETACHED, JOB_PID, launch_env
 from foamstudio.core.runtime.probe import Completed, decode_output
 from foamstudio.core.runtime.ssh import cancel_script, remote_bash
 
@@ -87,6 +87,35 @@ class JobQueue:
             except (OSError, ValueError):
                 return None
         return kill_argv(self.runtime.installation, pid, platform=sys.platform)
+
+    def launch_detached(self, command: str) -> int:
+        """Start one command that outlives FoamStudio (Windows: detached wsl.exe; POSIX: new
+        session). The marker file lets a reopened project reattach the log view and Stop."""
+        import json
+        import time
+
+        plan = self.runtime.prepare(command, self.case)
+        for step in plan.steps[:-1]:  # setup (WSL: chmod the runner script) runs to completion
+            subprocess.run(list(step), cwd=str(self.case), env=launch_env(), check=False)
+        flags = 0x00000008 | 0x00000200 if sys.platform == "win32" else 0  # DETACHED | NEW_GROUP
+        proc = subprocess.Popen(
+            list(plan.steps[-1]),
+            cwd=str(self.case),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=launch_env(),
+            creationflags=flags,
+            start_new_session=sys.platform != "win32",
+        )
+        self.pid = proc.pid
+        marker = self.case / DETACHED
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(
+            json.dumps({"pid": proc.pid, "command": command, "started": time.time()}),
+            encoding="utf-8",
+        )
+        return proc.pid
 
     def run_blocking(self, *, live: bool = False) -> tuple[Job, ...]:
         return asyncio.run(self._run(live=live))
@@ -175,7 +204,10 @@ def allrun_commands(solver: str, *, parallel: int = 1, mesh: str = "blockMesh") 
         raise ValueError(f"Unknown mesh step {mesh!r}. Use blockMesh, snappyHexMesh, or none.")
     steps.append("checkMesh")
     if parallel > 1:
-        steps.append("decomposePar")
+        steps.append(
+            f"foamDictionary system/decomposeParDict -entry numberOfSubdomains -set {parallel}"
+        )
+        steps.append("decomposePar -force")
         steps.append(f"mpirun -np {parallel} {solver} -parallel")
         steps.append("reconstructPar")
     else:

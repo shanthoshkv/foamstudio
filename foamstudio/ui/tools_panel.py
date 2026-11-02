@@ -335,6 +335,13 @@ class ToolsPanel(QTabWidget):
         layout.addWidget(QLabel(self.tr("Patches: edit Name or Type, then Apply")))
         layout.addWidget(self.patches, 1)
         layout.addWidget(_button(self.tr("Apply patch edits"), "applyPatches", self.apply_patches))
+        self.vertices = QTableWidget()
+        self.vertices.setObjectName("vertexTable")
+        layout.addWidget(QLabel(self.tr("blockMeshDict vertices: edit x y z, Apply, then Re-mesh")))
+        layout.addWidget(self.vertices, 1)
+        layout.addWidget(
+            _button(self.tr("Apply vertex edits"), "applyVertices", self.apply_vertices)
+        )
         layout.addWidget(QLabel(self.tr("y+ planner")))
         layout.addLayout(form)
         self.plan_yplus()
@@ -351,6 +358,21 @@ class ToolsPanel(QTabWidget):
             self.first.setText(str(exc).splitlines()[0])
             return
         self.first.setText(f"{h:.3g} m")
+
+    def apply_vertices(self) -> None:
+        case = self.case()
+        if case is None:
+            return
+        try:
+            points = [
+                tuple(float(self.vertices.item(r, c).text()) for c in range(3))
+                for r in range(self.vertices.rowCount())
+            ]
+            ws.set_block_vertices(case, points)  # type: ignore[arg-type]
+        except (ValueError, OSError, AttributeError) as exc:
+            self.say(str(exc))
+            return
+        self.say(self.tr("blockMeshDict vertices updated. Mesh tab > Re-mesh to rebuild."))
 
     def apply_patches(self) -> None:
         case = self.case()
@@ -394,6 +416,29 @@ class ToolsPanel(QTabWidget):
             )
         )
         layout.addLayout(row)
+        row = QHBoxLayout()
+        row.addWidget(
+            _button(self.tr("Streamlines (U)"), "streamlines", lambda: self.host.show_streamlines())
+        )
+        row.addWidget(
+            _button(
+                self.tr("Animate over time"),
+                "animate",
+                lambda: self.host.animate_field(self.field.currentText()),
+            )
+        )
+        layout.addLayout(row)
+        self.line_a = QLineEdit("0 0 0")
+        self.line_a.setObjectName("lineStart")
+        self.line_b = QLineEdit("1 0 0")
+        self.line_b.setObjectName("lineEnd")
+        row = QHBoxLayout()
+        row.addWidget(QLabel(self.tr("Line plot from")))
+        row.addWidget(self.line_a)
+        row.addWidget(QLabel(self.tr("to")))
+        row.addWidget(self.line_b)
+        row.addWidget(_button(self.tr("Plot"), "linePlot", self.line_plot))
+        layout.addLayout(row)
         layout.addWidget(
             _button(self.tr("Export residuals + Cd/Cl CSV..."), "exportCsv", self.export)
         )
@@ -431,6 +476,17 @@ class ToolsPanel(QTabWidget):
         self.say(f"Exported {len(out)} CSV files to {folder}")
         return out
 
+    def line_plot(self) -> str:
+        try:
+            a = tuple(float(v) for v in self.line_a.text().split())
+            b = tuple(float(v) for v in self.line_b.text().split())
+            if len(a) != 3 or len(b) != 3:
+                raise ValueError("Each point needs x y z.")
+        except ValueError as exc:
+            self.say(str(exc))
+            return ""
+        return str(self.host.line_plot(self.field.currentText(), a, b))
+
     def set_monitor(self, log_text: str) -> None:
         values = ws.monitor(log_text)
         self.monitor_text.setText("  ".join(f"{k} {v:.3g}" for k, v in values.items()))
@@ -450,6 +506,13 @@ class ToolsPanel(QTabWidget):
         self.sweep_values = QLineEdit("0, 2, 4, 6, 8, 10")
         self.sweep_values.setObjectName("sweepValues")
         layout = QVBoxLayout(page)
+        layout.addWidget(
+            _button(
+                self.tr("Run demo case (lid-driven cavity)"),
+                "runDemo",
+                lambda: self.host.run_demo(),
+            )
+        )
         layout.addWidget(QLabel(self.tr("Run history")))
         layout.addWidget(self.history, 1)
         layout.addWidget(
@@ -503,6 +566,11 @@ class ToolsPanel(QTabWidget):
             self.patches,
             [[n, t, str(f)] for n, t, f in ws.boundary_patches(case)],
             ["Name", "Type", "Faces"],
+        )
+        _fill(
+            self.vertices,
+            [[f"{v:g}" for v in p] for p in ws.block_vertices(case)],
+            ["x", "y", "z"],
         )
         history = ws.load_history(case)
         _fill(

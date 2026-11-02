@@ -12,6 +12,7 @@ from pathlib import Path
 
 _WINDOWS = re.compile(r"^[A-Za-z]:/")
 JOB_PID = ".foamstudio/job.pid"
+DETACHED = ".foamstudio/detached.json"  # a background run that outlives the app
 
 
 def sh_quote(value: str) -> str:

@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from foamstudio import __version__
 from foamstudio.app.logging_setup import configure_logging
@@ -195,6 +195,33 @@ def _airfoil_cli(parsed: argparse.Namespace) -> int:
     return 0
 
 
+def _first_run(window: Any) -> None:
+    """Runtime wizard (with its guided install) when none is saved, then a demo offer; and a
+    one-time crash-report consent question (reports stay off unless the user says yes)."""
+    from PySide6.QtWidgets import QMessageBox
+
+    store = window._store._store  # QSettings
+    if window._store.load_runtime() is None:
+        window.open_runtime_wizard()
+        if (
+            window._store.load_runtime() is not None
+            and QMessageBox.question(
+                window, "FoamStudio", "Run the lid-driven cavity demo now (about a minute)?"
+            )
+            == QMessageBox.StandardButton.Yes
+        ):
+            window.run_demo()
+    if store.value("crash/asked") is None:
+        answer = QMessageBox.question(
+            window,
+            "FoamStudio",
+            "Send anonymous crash reports (stack trace and versions, no case files)?\n"
+            "You can change this later in View > Send crash reports.",
+        )
+        window.set_crash_reports(answer == QMessageBox.StandardButton.Yes)
+        store.setValue("crash/asked", True)
+
+
 def _needs_project(parsed: argparse.Namespace) -> bool:
     return bool(
         parsed.write_case
@@ -261,10 +288,9 @@ def main(argv: list[str] | None = None) -> int:
     if instance.already_running:
         return 0
     window.show()
-    first_run = window._store.load_runtime() is None
-    if first_run and "--self-test" not in args and os.environ.get("FOAMSTUDIO_HEADLESS") != "1":
-        # First run: pick (or install) an OpenFOAM runtime before anything else.
-        window.open_runtime_wizard()
+    interactive = "--self-test" not in args and os.environ.get("FOAMSTUDIO_HEADLESS") != "1"
+    if interactive:
+        _first_run(window)
     if "--self-test" in args:
         app.processEvents()
         print("foamstudio: launched")
