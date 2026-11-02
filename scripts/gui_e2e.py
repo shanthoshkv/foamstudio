@@ -624,7 +624,7 @@ def js(code: str, key: str) -> None:
 check(
     "View > Dashboard opens the web page",
     dash is not None and win.centralWidget() is dash,
-    f"win={win.isVisible()} dash={dash.isVisible()} {dash.size().toTuple()} url={dash.view.url().toString()[-30:]}",
+    f"visible={dash.isVisible()} size={dash.size().toTuple()}",
 )
 ok = wait(
     lambda: (

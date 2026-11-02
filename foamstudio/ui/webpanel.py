@@ -52,10 +52,8 @@ class WebPage(QWidget):
     def __init__(self, host: Any, page: str = "dashboard.html") -> None:
         super().__init__(host)
         from PySide6.QtWebChannel import QWebChannel
-        from PySide6.QtWebEngineCore import QWebEngineScript
+        from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineScript
         from PySide6.QtWebEngineWidgets import QWebEngineView
-
-        from PySide6.QtWebEngineCore import QWebEnginePage
 
         class _Page(QWebEnginePage):
             def javaScriptConsoleMessage(self, level, message, line, source):  # type: ignore[no-untyped-def]
