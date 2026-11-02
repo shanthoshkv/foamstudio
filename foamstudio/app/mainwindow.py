@@ -573,7 +573,9 @@ class MainWindow(QMainWindow):
         self._residual_timer = QTimer(self)
         self._residual_timer.timeout.connect(self._refresh_residuals)
         self._residual_timer.start(2000)
-        self.statusBar().showMessage(self.tr("Reattached to a background run"))
+        # after the caller's own "Project opened" message
+        message = self.tr("Reattached to a background run")
+        QTimer.singleShot(0, lambda: self.statusBar().showMessage(message))
         logger.info("Reattached to the background run in %s", case)
         return True
 
@@ -1002,6 +1004,15 @@ class MainWindow(QMainWindow):
             return
         solver = self._run_panel.solver.text().strip() or "simpleFoam"
         log = self._project.case_dir / f"log.{solver}"
+        if not log.is_file():  # e.g. the case runs icoFoam or foamRun, not the panel's solver
+            found = sorted(
+                [
+                    *self._project.case_dir.glob("log.*Foam"),
+                    *self._project.case_dir.glob("log.foamRun"),
+                ],
+                key=lambda p: p.stat().st_mtime,
+            )
+            log = found[-1] if found else log
         if log.is_file():
             text = log.read_text(encoding="utf-8", errors="replace")
             self.show_residuals(text)

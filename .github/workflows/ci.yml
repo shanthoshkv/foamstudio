@@ -258,6 +258,11 @@ jobs:
           QTWEBENGINE_DISABLE_SANDBOX: "1"
           QTWEBENGINE_CHROMIUM_FLAGS: "--no-sandbox --disable-gpu"
         run: xvfb-run -a -s "-screen 0 1600x1000x24" python scripts/gui_e2e.py shots runtime.json
+      - name: Background run survives an app restart
+        env:
+          QTWEBENGINE_DISABLE_SANDBOX: "1"
+          QTWEBENGINE_CHROMIUM_FLAGS: "--no-sandbox --disable-gpu"
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" python scripts/detach_e2e.py runtime.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:
