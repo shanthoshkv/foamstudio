@@ -65,6 +65,7 @@ foamstudio = [
     "app/i18n/*.ts",
     "app/i18n/*.qm",
     "core/mesh/airfoil_case.json",
+    "ui/web/*.html",
 ]
 
 [tool.pytest.ini_options]

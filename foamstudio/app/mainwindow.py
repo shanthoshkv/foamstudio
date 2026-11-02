@@ -129,6 +129,7 @@ class MainWindow(QMainWindow):
         self._residual_plot: ResidualPlot | None = None
         self._viewer3d: Viewer3D | None = None
         self._tools: ToolsPanel | None = None
+        self._dashboard: QWidget | None = None
         self._jobs = None
         self._solver: _Background | None = None
         self._render: _Background | None = None
@@ -271,6 +272,11 @@ class MainWindow(QMainWindow):
         self._crash_action.setObjectName("actionCrashReports")
         self._crash_action.toggled.connect(self.set_crash_reports)
         view_menu.addAction(self._crash_action)
+        dashboard = QAction(self.tr("Dashboard"), self)
+        dashboard.setObjectName("actionDashboard")
+        dashboard.setShortcut("Ctrl+D")
+        dashboard.triggered.connect(lambda _checked=False: self.open_dashboard())
+        view_menu.addAction(dashboard)
 
         tools_menu = self.menuBar().addMenu(self.tr("Tools"))
         runtimes = QAction(self.tr("Runtimes..."), self)
@@ -710,7 +716,7 @@ class MainWindow(QMainWindow):
         view = Viewer3D(self)
         view.set_surface(surface)
         self._viewer3d = view
-        self.setCentralWidget(view)
+        self._set_centre(view)
         self.statusBar().showMessage(self.tr("Geometry loaded"))
         logger.info("Imported %s (%s patches)", path, len(surface.patches))
 
@@ -773,7 +779,7 @@ class MainWindow(QMainWindow):
         view = self._viewer3d or Viewer3D(self)
         if self._viewer3d is None:
             self._viewer3d = view
-            self.setCentralWidget(view)
+            self._set_centre(view)
         view.show_cells(self._project.case_dir, sets, text)
         logger.info("Mesh quality: %s", text)
         return text
@@ -1239,6 +1245,139 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self.tr("Runtime pinned to this project"))
         return pinned
 
+    # ---- hybrid dashboard (ui/web/dashboard.html over QWebChannel) ----
+    def open_dashboard(self) -> QWidget | None:
+        """Web dashboard as the centre view; None when WebEngine cannot load (headless)."""
+        if os.environ.get("FOAMSTUDIO_HEADLESS") == "1":
+            return None
+        if self._dashboard is None:
+            try:
+                from foamstudio.ui.webpanel import WebPage
+
+                self._dashboard = WebPage(self)
+            except Exception as exc:
+                logger.info("Web dashboard unavailable, keeping the native view: %s", exc)
+                return None
+        if self.centralWidget() is not self._dashboard:
+            self.setCentralWidget(self._dashboard)
+            self._dashboard.show()  # a widget taken out earlier stays hidden otherwise
+            self._viewer3d = None  # setCentralWidget deleted the previous centre widget
+        return self._dashboard
+
+    def _set_centre(self, widget: QWidget) -> None:
+        """Swap the centre view without deleting the dashboard (setCentralWidget would)."""
+        if self._dashboard is not None and self.centralWidget() is self._dashboard:
+            self.takeCentralWidget()
+        self.setCentralWidget(widget)
+        widget.show()
+
+    def dashboard_state(self) -> dict[str, object]:
+        from foamstudio.core import licence, runinfo, workspace
+        from foamstudio.core.logparse import parse_solver_log
+        from foamstudio.ui.webpanel import series
+
+        state: dict[str, object] = {
+            "theme": self._model.theme,
+            "project": None,
+            "path": "",
+            "running": bool(self._solver is not None and self._solver.isRunning())
+            or self._background_alive(),
+            "cores": runinfo.physical_cores(),
+            "ram": workspace.total_memory_gb(),
+            "licence": licence.status()[1],
+            "wsl": "WSL "
+            + ", ".join(
+                f"{k} {v}"
+                for k, v in workspace.read_wslconfig().items()
+                if k in ("memory", "processors")
+            ),
+            "processes": self._run_panel.processes.value() if self._run_panel else 1,
+            "detached": bool(self._run_panel and self._run_panel.detached.isChecked()),
+            "cells": 0,
+            "memory": 0.0,
+            "suggested": 1,
+            "progress": None,
+            "monitor": {},
+            "residuals": {},
+            "coefficients": {},
+            "history": [],
+        }
+        runtime = self._store.load_runtime()
+        state["runtime"] = runtime.label() if runtime is not None else None
+        if self._project is None:
+            return state
+        case = self._project.case_dir
+        cells = runinfo.cell_count(case)
+        state.update(
+            project=self._project.root.name,
+            path=str(self._project.root),
+            cells=cells,
+            memory=runinfo.memory_gb(cells),
+            suggested=runinfo.suggest_processes(cells) if cells else 1,
+            history=workspace.load_history(case)[::-1][:8],
+        )
+        logs = sorted(
+            [*case.glob("log.*Foam"), *case.glob("log.foamRun")], key=lambda p: p.stat().st_mtime
+        )
+        if logs:
+            text = logs[-1].read_text(encoding="utf-8", errors="replace")
+            by_field: dict[str, tuple[list[float], list[float]]] = {}
+            for sample in parse_solver_log(text).residuals:
+                xs, ys = by_field.setdefault(sample.field, ([], []))
+                xs.append(sample.time)
+                ys.append(sample.initial)
+            state["residuals"] = {f: series(*v) for f, v in by_field.items()}
+            p = runinfo.progress(text, _end_time(case))
+            if p is not None:
+                state["progress"] = {"t": p.iteration, "rate": p.per_second, "eta": p.eta_seconds}
+            state["monitor"] = workspace.monitor(text)
+        coeffs = runinfo.coefficients(case)
+        if coeffs.get("Time"):
+            state["coefficients"] = {
+                n: series(coeffs["Time"], coeffs[n]) for n in ("Cd", "Cl") if coeffs.get(n)
+            }
+        return state
+
+    def _background_alive(self) -> bool:
+        from foamstudio.core.runtime.paths import DETACHED
+
+        if self._project is None or not (self._project.case_dir / DETACHED).is_file():
+            return False
+        logs = list(self._project.case_dir.glob("log.*"))
+        return bool(logs) and time.time() - max(p.stat().st_mtime for p in logs) < 30
+
+    def dashboard_action(self, name: str, arg: str) -> None:
+        """Buttons on the web page. Anything that needs a dialog or the 3D view stays native."""
+        if name in ("processes", "detached", "continue"):
+            self._show_run_panel()
+        panel = self._run_panel
+        actions = {
+            "run": lambda: self.start_solver(),
+            "stop": self.stop_solver,
+            "continue": lambda: (panel.end_time.setText(arg), self.start_solver(resume=True)),
+            "processes": lambda: panel.processes.setValue(max(1, int(arg or 1))),
+            "detached": lambda: panel.detached.setChecked(bool(arg)),
+            "new": self.new_project_dialog,
+            "open": self.open_project_dialog,
+            "airfoil": self.new_airfoil_dialog,
+            "demo": self.run_demo,
+            "setup": self.open_setup,
+            "tools": self.open_tools,
+            "mesh": self.show_mesh,
+            "field": lambda: self.show_field(arg or "p"),
+            "quality": self.show_mesh_quality,
+            "report": lambda: self.write_report(pdf=False),
+        }
+        action = actions.get(name)
+        if action is None:
+            logger.error("Unknown dashboard action %r", name)
+            return
+        try:
+            action()
+        except Exception as exc:
+            logger.error("%s", exc)
+            self.statusBar().showMessage(str(exc).splitlines()[0])
+
     # ---- workspace tools host API (ToolsPanel calls these) ----
     def open_tools(self) -> ToolsPanel:
         if self._tools is None:
@@ -1265,7 +1404,7 @@ class MainWindow(QMainWindow):
     def _view(self) -> Viewer3D:
         if self._viewer3d is None:
             self._viewer3d = Viewer3D(self)
-            self.setCentralWidget(self._viewer3d)
+            self._set_centre(self._viewer3d)
         return self._viewer3d
 
     def show_mesh(self) -> str:

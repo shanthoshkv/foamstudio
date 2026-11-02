@@ -290,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     window.show()
     interactive = "--self-test" not in args and os.environ.get("FOAMSTUDIO_HEADLESS") != "1"
     if interactive:
+        window.open_dashboard()  # web dashboard as the home view; native view if WebEngine fails
         _first_run(window)
     if "--self-test" in args:
         app.processEvents()

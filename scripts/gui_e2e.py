@@ -612,6 +612,42 @@ from foamstudio.core.workspace import compare_cases  # noqa: E402
 
 check("Compare cases", "No differences" in compare_cases(proj / "case", src_case))
 
+# ---- hybrid web dashboard ----
+dash = win.open_dashboard()
+js_out: dict[str, object] = {}
+
+
+def js(code: str, key: str) -> None:
+    dash.view.page().runJavaScript(code, 0, lambda v: js_out.__setitem__(key, v))
+
+
+check(
+    "View > Dashboard opens the web page",
+    dash is not None and win.centralWidget() is dash,
+    f"win={win.isVisible()} dash={dash.isVisible()} {dash.size().toTuple()} url={dash.view.url().toString()[-30:]}",
+)
+ok = wait(
+    lambda: (
+        (js("document.getElementById('cells').textContent", "cells"), js_out.get("cells"))[1]
+        not in (None, "", "–")
+    ),
+    30,
+)
+check("Dashboard renders project state from Python", ok, str(js_out.get("cells")))
+js("(typeof py) + '|' + document.getElementById('history').textContent", "hist")
+wait(lambda: "hist" in js_out, 10)
+check(
+    "Dashboard shows run history",
+    "succeeded" in str(js_out.get("hist")),
+    str(js_out.get("hist"))[:80],
+)
+js("act('processes', 3); 'sent'", "act")
+ok = wait(lambda: win._run_panel is not None and win._run_panel.processes.value() == 3, 10)
+check("Dashboard control calls Python (processes = 3)", ok)
+shot("dashboard", dash)
+win.show_mesh()
+check("3D view replaces the dashboard without deleting it", win.open_dashboard() is dash)
+
 # ---- post-processing, vertex edits, demo, background run ----
 check("Mesh > vertex table filled", tools.vertices.rowCount() >= 8)
 tools.apply_vertices()
