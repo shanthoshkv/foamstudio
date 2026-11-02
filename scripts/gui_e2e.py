@@ -562,6 +562,56 @@ quality = win.show_mesh_quality()
 check("Mesh > Show mesh quality reports checkMesh sets", bool(quality))
 check("Help > Enter licence key... exists", action("Enter licence key...") is not None)
 
+# ---- workspace tools: resources, import, scripts, mesh, results, runs ----
+win.open_project_path(proj)
+tools = win.open_tools()
+check("Tools > Workspace tools opens with 6 tabs", tools.count() == 6)
+check(
+    "Resources shows RAM and the WSL cap",
+    "GB RAM" in tools.machine.text() and tools.mem.maximum() >= 1,
+)
+src_case = WORK / "srccase"
+shutil.copytree(proj / "case", src_case)
+kind = tools.import_path(src_case, WORK / "imported" / "case")
+check("Import a whole case folder", "as case" in kind)
+part = tools.import_path(src_case / "system", WORK / "imported2" / "case")
+check(
+    "Import a single system folder",
+    "as part" in part and (WORK / "imported2/case/system/controlDict").is_file(),
+)
+new = tools.new_case(src_case, WORK / "fromfolder")
+check(
+    "New case from a folder creates a project and copies the case",
+    new is not None and (new / "system" / "controlDict").is_file(),
+)
+win.open_project_path(proj)
+(proj / "case" / "hello.sh").write_text("echo scripted > scripted.txt\n", encoding="utf-8")
+tools.refresh_case()
+items = [tools.script_list.item(i).text() for i in range(tools.script_list.count())]
+tools.script_list.setCurrentRow(items.index("hello.sh"))
+tools.run_script()
+ok = wait(lambda: (proj / "case/scripted.txt").is_file(), 120, 0.5)
+wait(lambda: not win._solver.isRunning(), 30, 0.5)
+pump(1)
+check(
+    "Scripts > Run selected runs in the runtime",
+    ok,
+    f"{win._project.case_dir} {sorted(p.name for p in (proj / 'case').iterdir())}",
+)
+tools.refresh_case()
+check("Runs > history records the script run", tools.history.rowCount() >= 1)
+check("Mesh > checkMesh table filled", tools.checks.rowCount() >= 2)
+check("Mesh > patch table filled", tools.patches.rowCount() >= 1)
+check("Mesh > View mesh", "Mesh" in win.show_mesh())
+check("Results > colour by p", "p at the latest time" in win.show_field("p"))
+exported = tools.export_to(WORK)
+check("Results > export CSV", any(p.name == "residuals.csv" for p in exported))
+check("y+ planner gives a height", tools.first.text().endswith(" m"))
+check("Runs > pin runtime", win.pin_runtime() is not None)
+from foamstudio.core.workspace import compare_cases  # noqa: E402
+
+check("Compare cases", "No differences" in compare_cases(proj / "case", src_case))
+
 # ---- done ----
 win.close()
 pump()

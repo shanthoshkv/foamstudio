@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
@@ -34,6 +35,7 @@ from foamstudio.app.theme import load_icon, load_qss, ui_font
 from foamstudio.core.project import Project, ProjectError
 from foamstudio.core.project import create_project as create_project_at
 from foamstudio.core.project import open_project as open_project_at
+from foamstudio.core.runtime.model import Installation
 from foamstudio.core.settings_model import (
     DEFAULT_FONT_PT,
     MAX_FONT_PT,
@@ -50,6 +52,7 @@ from foamstudio.ui.residual_plot import ResidualPlot
 from foamstudio.ui.run_panel import RunPanel
 from foamstudio.ui.runtime_wizard import RuntimeWizard
 from foamstudio.ui.setup_panel import SetupPanel
+from foamstudio.ui.tools_panel import ToolsPanel
 from foamstudio.ui.viewer3d import Viewer3D
 
 logger = logging.getLogger("foamstudio")
@@ -121,6 +124,7 @@ class MainWindow(QMainWindow):
         self._dict_editor: DictEditor | None = None
         self._residual_plot: ResidualPlot | None = None
         self._viewer3d: Viewer3D | None = None
+        self._tools: ToolsPanel | None = None
         self._jobs = None
         self._solver: _Background | None = None
         self._render: _Background | None = None
@@ -268,10 +272,14 @@ class MainWindow(QMainWindow):
         runtimes = QAction(self.tr("Runtimes..."), self)
         runtimes.setObjectName("actionRuntimes")
         runtimes.triggered.connect(lambda _checked=False: self.open_runtime_wizard())
+        tools_action = QAction(self.tr("Workspace tools..."), self)
+        tools_action.setObjectName("actionWorkspaceTools")
+        tools_action.triggered.connect(lambda _checked=False: self.open_tools())
         dictionary = QAction(self.tr("Dictionary editor..."), self)
         dictionary.setObjectName("actionDictionary")
         dictionary.triggered.connect(lambda _checked=False: self.open_dictionary())
         tools_menu.addAction(runtimes)
+        tools_menu.addAction(tools_action)
         tools_menu.addAction(dictionary)
 
         help_menu = self.menuBar().addMenu(self.tr("Help"))
@@ -857,10 +865,19 @@ class MainWindow(QMainWindow):
                 lines.append(f"t = {p.iteration:g}, {p.per_second:.3g} /s{eta}")
         panel.info.setText("\n".join(lines) or self.tr("No mesh yet."))
 
-    def start_solver(self, *, resume: bool = False) -> None:
-        from foamstudio.core.jobs import JobQueue
+    def start_solver(
+        self,
+        *,
+        resume: bool = False,
+        commands: list[tuple[str, str]] | None = None,
+        workdir: Path | None = None,
+    ) -> None:
+        """Allrun (default), a resume, or explicit (command, name) steps in workdir."""
+        from foamstudio.core.jobs import JobQueue, logged
         from foamstudio.core.runtime import bind
 
+        if self._run_panel is None:
+            self._show_run_panel()
         if self._run_panel is None:
             return
         if self._solver is not None and self._solver.isRunning():
@@ -873,7 +890,7 @@ class MainWindow(QMainWindow):
             )
             self.statusBar().showMessage(self.tr("Create or open a project"))
             return
-        installation = self._store.load_runtime()
+        installation = self._project_runtime() or self._store.load_runtime()
         if installation is None:
             logger.error("No runtime is saved.\n\nTools → Runtimes... and choose an installation.")
             self.statusBar().showMessage(self.tr("No runtime is saved"))
@@ -886,9 +903,12 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(message)
             return
         solver = self._run_panel.solver.text().strip() or "simpleFoam"
-        queue = JobQueue(bind(installation), self._project.case_dir)
+        queue = JobQueue(bind(installation), workdir or self._project.case_dir)
         snappy = (self._project.case_dir / "system" / "snappyHexMeshDict").is_file()
-        if resume:
+        if commands:
+            for command, name in commands:
+                queue.add(logged(command, name), name=name)
+        elif resume:
             end = self._run_panel.end_time.text().strip()
             queue.add_resume(
                 solver, parallel=self._run_panel.processes.value(), end_time=end or None
@@ -900,7 +920,9 @@ class MainWindow(QMainWindow):
                 mesh="snappyHexMesh" if snappy else "blockMesh",
             )
         self._jobs = queue
-        logger.info("Running %s", ", ".join(job.name for job in queue.jobs))
+        self._run_started = time.time()
+        self._run_label = ", ".join(job.name for job in queue.jobs)
+        logger.info("Running %s", self._run_label)
 
         def work() -> str:
             results = queue.run_blocking(live=True)
@@ -934,6 +956,8 @@ class MainWindow(QMainWindow):
             text = log.read_text(encoding="utf-8", errors="replace")
             self.show_residuals(text)
             self._update_run_info(text)
+            if self._tools is not None:
+                self._tools.set_monitor(text)
 
     def _stop_residual_timer(self) -> None:
         timer = getattr(self, "_residual_timer", None)
@@ -951,13 +975,25 @@ class MainWindow(QMainWindow):
             logger.info("Kill %s", " ".join(argv))
         self.statusBar().showMessage(self.tr("Stop requested"))
 
+    def _record(self, status: str) -> None:
+        from foamstudio.core.workspace import record_run
+
+        if self._project is not None and getattr(self, "_run_started", None):
+            record_run(
+                self._project.case_dir, self._run_label, status, self._run_started, time.time()
+            )
+        if self._tools is not None:
+            self._tools.refresh_case()
+
     def _solver_ok(self, result: object) -> None:
+        self._record("succeeded")
         logger.info("%s", result)
         self.statusBar().showMessage(self.tr("Run finished"))
         self._stop_residual_timer()
         self._refresh_residuals()
 
     def _solver_fail(self, message: str) -> None:
+        self._record("failed")
         logger.error("%s", message)
         self.statusBar().showMessage(self.tr("Run failed"))
         self._stop_residual_timer()
@@ -1118,6 +1154,125 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(limit_message)
             return
         self._apply_model(replace(self._model, font_point_size=size), persist=True)
+
+    def _project_runtime(self) -> Installation | None:
+        """A runtime pinned to this project (.foamstudio/runtime.json) beats the global one,
+        so one project can stay on Foundation 12 or a cluster while others use ESI."""
+        if self._project is None:
+            return None
+        pinned = self._project.root / ".foamstudio" / "runtime.json"
+        if not pinned.is_file():
+            return None
+        return Installation.from_dict(json.loads(pinned.read_text(encoding="utf-8")))
+
+    def pin_runtime(self) -> Path | None:
+        installation = self._store.load_runtime()
+        if self._project is None or installation is None:
+            self.statusBar().showMessage(self.tr("Open a project and pick a runtime first."))
+            return None
+        pinned = self._project.root / ".foamstudio" / "runtime.json"
+        pinned.parent.mkdir(parents=True, exist_ok=True)
+        pinned.write_text(json.dumps(installation.to_dict(), indent=1), encoding="utf-8")
+        self.statusBar().showMessage(self.tr("Runtime pinned to this project"))
+        return pinned
+
+    # ---- workspace tools host API (ToolsPanel calls these) ----
+    def open_tools(self) -> ToolsPanel:
+        if self._tools is None:
+            self._tools = ToolsPanel(self)
+        self._tools.refresh()
+        self.properties_dock.setWidget(self._tools)
+        self.properties_dock.show()
+        return self._tools
+
+    def run_command(self, command: str, name: str) -> None:
+        self.start_solver(commands=[(command, name.replace(".", "_"))])
+
+    def remesh(self) -> None:
+        if self._project is None:
+            return
+        steps = [("blockMesh", "blockMesh")]
+        if (self._project.case_dir / "system" / "snappyHexMeshDict").is_file():
+            steps += [
+                ("surfaceFeatureExtract", "surfaceFeatureExtract"),
+                ("snappyHexMesh -overwrite", "snappyHexMesh"),
+            ]
+        self.start_solver(commands=[*steps, ("checkMesh", "checkMesh")])
+
+    def _view(self) -> Viewer3D:
+        if self._viewer3d is None:
+            self._viewer3d = Viewer3D(self)
+            self.setCentralWidget(self._viewer3d)
+        return self._viewer3d
+
+    def show_mesh(self) -> str:
+        if self._project is None:
+            return ""
+        return self._view().show_case(self._project.case_dir, None)
+
+    def show_field(self, field: str) -> str:
+        if self._project is None:
+            return ""
+        return self._view().show_case(self._project.case_dir, field or None)
+
+    def save_plots(self) -> list[Path]:
+        plot = self._residual_plot
+        if self._project is None or plot is None:
+            self.statusBar().showMessage(self.tr("No plots yet: run the case first."))
+            return []
+        out = []
+        for widget, name in (
+            (plot._plot, "residuals.png"),
+            (plot._coeff_plot, "coefficients.png"),
+        ):
+            if widget is not None:
+                path = self._project.case_dir / name
+                widget.grab().save(str(path))
+                out.append(path)
+        self.statusBar().showMessage(self.tr("Saved %1 plots").replace("%1", str(len(out))))
+        return out
+
+    def show_text(self, title: str, text: str) -> None:
+        from PySide6.QtWidgets import QDialog, QPlainTextEdit, QVBoxLayout
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        view = QPlainTextEdit(text)
+        view.setReadOnly(True)
+        QVBoxLayout(dialog).addWidget(view)
+        dialog.resize(900, 600)
+        dialog.show()
+
+    def create_from_spec(self, root: Path, spec: Path) -> Project | None:
+        from foamstudio.generator.write_case import write_spec_file
+
+        project = self.create_project(root)
+        if project is None:
+            return None
+        try:
+            write_spec_file(project, spec, app_version=__version__)
+            mesh = sorted(spec.parent.glob("blockMeshDict*"))
+            if mesh:
+                (project.case_dir / "system" / "blockMeshDict").write_bytes(mesh[0].read_bytes())
+        except Exception as exc:
+            logger.error("%s", exc)
+            return None
+        self.statusBar().showMessage(self.tr("Case written from %1").replace("%1", spec.name))
+        return project
+
+    def run_sweep(self, folder: Path, alphas: list[float], code: str = "0012") -> list[Path]:
+        """One airfoil project per angle, then their Allruns in sequence as one queue."""
+        from foamstudio.core.project import create_project as make
+        from foamstudio.generator.write_case import write_airfoil
+
+        cases = []
+        for alpha in alphas:
+            project = make(folder / f"naca{code}_a{alpha:g}", app_version=__version__)
+            write_airfoil(project, code, alpha, 6e6, app_version=__version__)
+            cases.append(project.case_dir)
+        steps = [(f"bash ./{c.parent.name}/case/Allrun", f"Allrun_{c.parent.name}") for c in cases]
+        self.start_solver(commands=steps, workdir=folder)
+        return cases
 
     def enter_licence_dialog(self) -> None:
         from PySide6.QtWidgets import QInputDialog

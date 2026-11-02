@@ -122,6 +122,69 @@ class Viewer3D(QWidget):
         except Exception as exc:
             self.summary.setText(f"{text}\n\nThe 3D view could not load the mesh: {exc}")
 
+    def _plotter(self) -> object:
+        from pyvistaqt import QtInteractor
+
+        if self._plot is None:
+            plot = QtInteractor(self)
+            layout = self.layout()
+            assert isinstance(layout, QVBoxLayout)
+            layout.insertWidget(1, plot, 1)
+            self._plot = plot
+            for button in (self.clip_button, self.slice_button, self.reset_button):
+                button.setEnabled(True)
+        return self._plot
+
+    def show_case(self, case: object, field: str | None) -> str:
+        """polyMesh with patches (field None) or the latest-time field on the internal mesh."""
+        from pathlib import Path
+
+        root = Path(str(case))
+        if not (root / "constant" / "polyMesh" / "faces").is_file():
+            text = self.tr("No polyMesh yet: run blockMesh (Mesh tab > Re-mesh) first.")
+            self.summary.setText(text)
+            return text
+        text = (
+            self.tr("Mesh: %1").replace("%1", str(root))
+            if field is None
+            else f"{field} at the latest time"
+        )
+        self.summary.setText(text)
+        if not viewer_enabled():
+            return text
+        try:
+            import pyvista as pv
+
+            marker = root / "case.foam"
+            marker.touch()
+            reader = pv.OpenFOAMReader(str(marker))
+            if field is not None and reader.time_values:
+                reader.set_active_time_value(reader.time_values[-1])
+            data = reader.read()
+            plot = self._plotter()
+            plot.clear()  # type: ignore[attr-defined]
+            if field is None:
+                patches = data["boundary"]
+                for index, name in enumerate(patches.keys()):
+                    plot.add_mesh(
+                        patches[name], color=pv.Color(f"C{index % 10}"), show_edges=True, label=name
+                    )  # type: ignore[attr-defined]
+                plot.add_legend()  # type: ignore[attr-defined]
+                self._mesh = data["internalMesh"]
+            else:
+                mesh = data["internalMesh"]
+                if field not in mesh.array_names:
+                    raise ValueError(
+                        f"{field} is not in the latest time ({', '.join(mesh.array_names)})"
+                    )
+                plot.add_mesh(mesh, scalars=field, show_scalar_bar=True)  # type: ignore[attr-defined]
+                self._mesh = mesh
+            plot.reset_camera()  # type: ignore[attr-defined]
+        except Exception as exc:
+            text = f"{text}\n\nThe 3D view could not load the case: {exc}"
+            self.summary.setText(text)
+        return text
+
     def show_tool(self, tool: str) -> None:
         """Interactive PyVista plane widgets: drag the plane to clip or slice the surface."""
         plot, mesh = self._plot, self._mesh

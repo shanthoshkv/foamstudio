@@ -261,6 +261,10 @@ def main(argv: list[str] | None = None) -> int:
     if instance.already_running:
         return 0
     window.show()
+    first_run = window._store.load_runtime() is None
+    if first_run and "--self-test" not in args and os.environ.get("FOAMSTUDIO_HEADLESS") != "1":
+        # First run: pick (or install) an OpenFOAM runtime before anything else.
+        window.open_runtime_wizard()
     if "--self-test" in args:
         app.processEvents()
         print("foamstudio: launched")
