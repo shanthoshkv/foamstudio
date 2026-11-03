@@ -1,0 +1,232 @@
+FoamFile
+{
+    version 2.0;
+    format ascii;
+    class dictionary;
+    object transportProperties;
+}
+
+"H2"
+{
+    transport
+    {
+        As 7.566965e-07;
+        Ts 170.505;
+    }
+}
+"H"
+{
+    transport
+    {
+        As 9.126657e-07;
+        Ts 219.422;
+    }
+}
+"O"
+{
+    transport
+    {
+        As 2.169815e-06;
+        Ts 182.819;
+    }
+}
+"O2"
+{
+    transport
+    {
+        As 1.869981e-06;
+        Ts 196.064;
+    }
+}
+"OH"
+{
+    transport
+    {
+        As 2.237124e-06;
+        Ts 182.819;
+    }
+}
+"H2O"
+{
+    transport
+    {
+        As 2.185861e-06;
+        Ts 857.778;
+    }
+}
+"HO2"
+{
+    transport
+    {
+        As 1.899207e-06;
+        Ts 196.064;
+    }
+}
+"H2O2"
+{
+    transport
+    {
+        As 1.927989e-06;
+        Ts 196.064;
+    }
+}
+"CH"
+{
+    transport
+    {
+        As 1.957335e-06;
+        Ts 182.819;
+    }
+}
+"CH2"
+{
+    transport
+    {
+        As 9.915722e-07;
+        Ts 218.739;
+    }
+}
+"CH2(S)"
+{
+    transport
+    {
+        As 9.915722e-07;
+        Ts 218.739;
+    }
+}
+"CH3"
+{
+    transport
+    {
+        As 1.026582e-06;
+        Ts 218.739;
+    }
+}
+"CH4"
+{
+    transport
+    {
+        As 1.093365e-06;
+        Ts 216.982;
+    }
+}
+"CO"
+{
+    transport
+    {
+        As 1.587883e-06;
+        Ts 191.173;
+    }
+}
+"CO2"
+{
+    transport
+    {
+        As 1.708896e-06;
+        Ts 299.752;
+    }
+}
+"HCO"
+{
+    transport
+    {
+        As 1.465205e-06;
+        Ts 535.734;
+    }
+}
+"CH2O"
+{
+    transport
+    {
+        As 1.490436e-06;
+        Ts 535.734;
+    }
+}
+"CH2OH"
+{
+    transport
+    {
+        As 1.447691e-06;
+        Ts 490.603;
+    }
+}
+"CH3O"
+{
+    transport
+    {
+        As 1.447691e-06;
+        Ts 490.603;
+    }
+}
+"C2H2"
+{
+    transport
+    {
+        As 1.120388e-06;
+        Ts 269.1;
+    }
+}
+"C2H3"
+{
+    transport
+    {
+        As 1.141869e-06;
+        Ts 269.1;
+    }
+}
+"C2H4"
+{
+    transport
+    {
+        As 1.213939e-06;
+        Ts 333.581;
+    }
+}
+"C2H5"
+{
+    transport
+    {
+        As 1.060049e-06;
+        Ts 307.257;
+    }
+}
+"C2H6"
+{
+    transport
+    {
+        As 1.078276e-06;
+        Ts 307.257;
+    }
+}
+"HCCO"
+{
+    transport
+    {
+        As 3.901295e-06;
+        Ts 222.897;
+    }
+}
+"CH2CO"
+{
+    transport
+    {
+        As 1.452681e-06;
+        Ts 480.272;
+    }
+}
+"CH2CHO"
+{
+    transport
+    {
+        As 1.469994e-06;
+        Ts 480.272;
+    }
+}
+"CH3CHO"
+{
+    transport
+    {
+        As 1.487106e-06;
+        Ts 480.272;
+    }
+}
