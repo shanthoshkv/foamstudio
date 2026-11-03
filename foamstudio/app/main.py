@@ -35,6 +35,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--theme", choices=("dark", "light"))
     parser.add_argument(
+        "--safe", action="store_true", help="Reset theme/font/expert settings; skip venv relaunch."
+    )
+    parser.add_argument(
         "--detect-runtimes",
         action="store_true",
         help="Print detected OpenFOAM installations as JSON and exit.",
@@ -201,16 +204,20 @@ def _first_run(window: Any) -> None:
     from PySide6.QtWidgets import QMessageBox
 
     store = window._store._store  # QSettings
-    if window._store.load_runtime() is None:
+    fresh = window._store.load_runtime() is None
+    if store.value("setup/done") is None or store.value("setup/pending"):
+        window.open_install_setup()  # install, runtimes and SSH in one window
+    elif fresh:
         window.open_runtime_wizard()
-        if (
-            window._store.load_runtime() is not None
-            and QMessageBox.question(
-                window, "FoamStudio", "Run the lid-driven cavity demo now (about a minute)?"
-            )
-            == QMessageBox.StandardButton.Yes
-        ):
-            window.run_demo()
+    if (
+        fresh
+        and window._store.load_runtime() is not None
+        and QMessageBox.question(
+            window, "FoamStudio", "Run the lid-driven cavity demo now (about a minute)?"
+        )
+        == QMessageBox.StandardButton.Yes
+    ):
+        window.run_demo()
     if store.value("crash/asked") is None:
         answer = QMessageBox.question(
             window,
@@ -277,6 +284,20 @@ def main(argv: list[str] | None = None) -> int:
         return _run_cli(parsed, Path(parsed.project), Path(parsed.runtime))
     if _needs_project(parsed):
         return 0
+    from foamstudio.core.setup_env import relaunch_in_venv
+
+    if parsed.safe:
+        from PySide6.QtCore import QSettings
+
+        os.environ["FOAMSTUDIO_NO_RELAUNCH"] = "1"
+        store = QSettings("FoamStudio", "FoamStudio")
+        for key in ("theme", "font_point_size", "expert_mode"):
+            store.remove(key)
+        store.sync()
+
+    relaunched = relaunch_in_venv(args)  # the managed venv owns the GUI once setup made it
+    if relaunched is not None:
+        return relaunched
     try:
         app, window, instance = build_application(args)
     except Exception as exc:

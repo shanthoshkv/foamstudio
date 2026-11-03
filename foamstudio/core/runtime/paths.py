@@ -19,8 +19,18 @@ def sh_quote(value: str) -> str:
     return "'" + value.replace("'", "'\\''") + "'"
 
 
+def unc_to_wsl(path: str) -> tuple[str, str]:
+    """`\\\\wsl.localhost\\D\\x` or `\\\\wsl$\\D\\x` -> ("D", "/x")."""
+    match = re.fullmatch(r"//wsl(?:\.localhost|\$)/([^/]+)(/.*)?", path.replace("\\", "/"))
+    if match is None:
+        raise ValueError(f"Not a WSL share path: {path}")
+    return match.group(1), match.group(2) or "/"
+
+
 def windows_to_wsl(path: str) -> str:
     text = path.replace("\\", "/")
+    if text.startswith("//wsl"):
+        return unc_to_wsl(text)[1]
     match = re.fullmatch(r"([A-Za-z]):/(.*)", text)
     if match is None:
         raise ValueError(f"Not a Windows path: {path}")

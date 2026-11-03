@@ -10,13 +10,14 @@ from foamstudio.core.runtime.paths import reject_dollar, windows_to_wsl
 from foamstudio.core.runtime.probe import Completed, Probe, ProbeMissing
 
 _LIST = ("wsl.exe", "-l", "-q")
+# Standard locations first (instant). Only when none exist, a deep find for source builds in
+# odd places: on a cold WSL disk that find takes ~20 s, longer than the detect timeout.
 _BASHRCS = (
-    "ls -d "
-    "/usr/lib/openfoam/openfoam*/etc/bashrc "
-    "/opt/openfoam*/etc/bashrc "
-    "/home/*/OpenFOAM/OpenFOAM-*/etc/bashrc "
-    "/root/OpenFOAM/OpenFOAM-*/etc/bashrc "
-    "2>/dev/null || true"
+    "ls -d /usr/lib/openfoam/openfoam*/etc/bashrc /opt/openfoam*/etc/bashrc "
+    "/home/*/OpenFOAM/OpenFOAM-*/etc/bashrc /root/OpenFOAM/OpenFOAM-*/etc/bashrc "
+    "2>/dev/null | grep . || timeout 12 find /opt /usr/local /home /root /srv -maxdepth 5 "
+    r"\( -name 'processor*' -o -name postProcessing -o -name '.*' \) -prune "
+    "-o -path '*/etc/bashrc' -print 2>/dev/null || true"
 )
 
 

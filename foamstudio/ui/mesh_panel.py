@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtGui import QValidator
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -14,12 +15,33 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from foamstudio.core.units import parse_quantity
+
 # Roles the generator's validateSpec accepts (SPEC_ROLES in openfoam_case_generator.html).
 ROLES = ("inlet", "outlet", "wall", "freestream", "opening", "symmetry", "empty", "wedge", "cyclic")
 
 
+class _LengthBox(QDoubleSpinBox):
+    """Type '25 mm', '1 in' or '0.3 ft'; stored in metres."""
+
+    def validate(self, text: str, pos: int) -> tuple[QValidator.State, str, int]:
+
+        try:
+            parse_quantity(text.removesuffix(self.suffix()), "length")
+            return (QValidator.State.Acceptable, text, pos)
+        except ValueError:
+            return (QValidator.State.Intermediate, text, pos)
+
+    def valueFromText(self, text: str) -> float:
+        try:
+            return parse_quantity(text.removesuffix(self.suffix()), "length")
+        except ValueError:
+            return self.value()
+
+
 def _length(value: float) -> QDoubleSpinBox:
-    box = QDoubleSpinBox()
+    box = _LengthBox()
+    box.setToolTip("Metres, or type a unit: 25 mm, 1 in, 0.3 ft")
     box.setDecimals(4)
     box.setRange(1e-4, 1e4)
     box.setSuffix(" m")

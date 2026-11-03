@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import replace
@@ -54,12 +55,16 @@ from foamstudio.ui.post_panel import PostPanel
 from foamstudio.ui.report_panel import ReportPanel
 from foamstudio.ui.residual_plot import ResidualPlot
 from foamstudio.ui.run_panel import RunPanel
-from foamstudio.ui.runtime_wizard import RuntimeWizard
 from foamstudio.ui.setup_panel import SetupPanel
 from foamstudio.ui.tools_panel import ToolsPanel
 from foamstudio.ui.viewer3d import Viewer3D
 
 logger = logging.getLogger("foamstudio")
+
+
+def _duration(seconds: float) -> str:
+    minutes = round(seconds / 60)
+    return f"{minutes // 60} h {minutes % 60} min" if minutes >= 60 else f"{max(minutes, 1)} min"
 
 
 def _end_time(case: Path) -> float | None:
@@ -73,8 +78,14 @@ def _end_time(case: Path) -> float | None:
 _SECTIONS = ("Geometry", "Mesh", "Setup", "Run", "Results", "Reports")
 _CONSOLE_TABS = (
     ("Log", ""),
-    ("Residuals", "No residuals yet."),
-    ("Monitors", "No monitors yet."),
+    (
+        "Residuals",
+        "No residuals yet. Start a run (Run panel or dashboard) and they plot here live.",
+    ),
+    (
+        "Monitors",
+        "No monitors yet. Force coefficients and probes appear here once a run writes them.",
+    ),
     ("Problems", "No problems."),
 )
 
@@ -288,14 +299,43 @@ class MainWindow(QMainWindow):
         dictionary = QAction(self.tr("Dictionary editor..."), self)
         dictionary.setObjectName("actionDictionary")
         dictionary.triggered.connect(lambda _checked=False: self.open_dictionary())
+        setup = QAction(self.tr("Setup && libraries..."), self)
+        setup.setObjectName("actionSetup")
+        setup.triggered.connect(lambda _checked=False: self.open_install_setup())
+        tools_menu.addAction(setup)
         tools_menu.addAction(runtimes)
         tools_menu.addAction(tools_action)
         tools_menu.addAction(dictionary)
+        for name, label, key, slot in (
+            ("actionPalette", self.tr("Command palette..."), "Ctrl+K", self.open_palette),
+            ("actionConsole", self.tr("Python console..."), "Ctrl+Shift+P", self.open_console),
+            ("actionVSCode", self.tr("Open case in VS Code"), "", self.open_vscode),
+            (
+                "actionPhysics",
+                self.tr("Physics && templates..."),
+                "Ctrl+Shift+F",
+                self.open_physics,
+            ),
+        ):
+            act = QAction(label, self)
+            act.setObjectName(name)
+            act.setShortcut(key)
+            act.triggered.connect(lambda _c=False, s=slot: s())
+            tools_menu.addAction(act)
 
         help_menu = self.menuBar().addMenu(self.tr("Help"))
         about = QAction(self.tr("About"), self)
         about.triggered.connect(self._about)
         help_menu.addAction(about)
+        for name, label, key, slot in (
+            ("actionShortcuts", self.tr("Keyboard shortcuts"), "F1", self.open_shortcuts),
+            ("actionReport", self.tr("Report a problem..."), "", self.report_problem),
+        ):
+            act = QAction(label, self)
+            act.setObjectName(name)
+            act.setShortcut(key)
+            act.triggered.connect(lambda _c=False, s=slot: s())
+            help_menu.addAction(act)
         licence = QAction(self.tr("Enter licence key..."), self)
         licence.setObjectName("actionLicence")
         licence.triggered.connect(lambda _checked=False: self.enter_licence_dialog())
@@ -372,9 +412,20 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(self.tr("Expert mode is off."))
 
     def new_project_dialog(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, self.tr("New project folder"))
+        folder = QFileDialog.getExistingDirectory(
+            self, self.tr("New project folder"), self._projects_root()
+        )
         if folder:
             self.create_project(Path(folder))
+
+    def _projects_root(self) -> str:
+        """WSL runtime -> start inside the distro's home so cases sit on the Linux disk."""
+        from foamstudio.core.setup_env import wsl_projects_dir
+
+        runtime = self._store.load_runtime()
+        if runtime is None or runtime.kind != "wsl":
+            return ""
+        return str(wsl_projects_dir(runtime.distro) or "")
 
     def new_airfoil_dialog(self) -> None:
         from PySide6.QtWidgets import QInputDialog
@@ -394,7 +445,9 @@ class MainWindow(QMainWindow):
         )
         if not ok:
             return
-        folder = QFileDialog.getExistingDirectory(self, self.tr("New project folder"))
+        folder = QFileDialog.getExistingDirectory(
+            self, self.tr("New project folder"), self._projects_root()
+        )
         if folder:
             self.create_airfoil(Path(folder), code.strip(), alpha, reynolds)
 
@@ -672,10 +725,14 @@ class MainWindow(QMainWindow):
         if self._setup is not None:
             self._setup.write_button.setEnabled(enabled)
 
-    def open_runtime_wizard(self) -> None:
-        dialog = RuntimeWizard(self._store, parent=self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
+    def open_install_setup(self, tab: int = 0) -> None:
+        from foamstudio.ui.setup_dialog import SetupDialog
+
+        if SetupDialog(self._store, parent=self, tab=tab).exec() == QDialog.DialogCode.Accepted:
             self.statusBar().showMessage(self.tr("Runtime saved"))
+
+    def open_runtime_wizard(self) -> None:
+        self.open_install_setup(tab=1)  # runtimes live in the setup window now
 
     def maybe_prompt_runtime(self) -> None:
         if os.environ.get("FOAMSTUDIO_HEADLESS") == "1":
@@ -907,8 +964,13 @@ class MainWindow(QMainWindow):
             end = _end_time(case)
             p = runinfo.progress(log_text, end)
             if p is not None:
-                eta = "" if p.eta_seconds is None else f", ETA {p.eta_seconds / 60:.0f} min"
+                eta = "" if p.eta_seconds is None else f", ETA {_duration(p.eta_seconds)}"
                 lines.append(f"t = {p.iteration:g}, {p.per_second:.3g} /s{eta}")
+                timer = getattr(self, "_residual_timer", None)
+                if (self._solver is not None and self._solver.isRunning()) or (
+                    timer and timer.isActive()
+                ):
+                    self.statusBar().showMessage(f"Running: {lines[-1]}")
         panel.info.setText("\n".join(lines) or self.tr("No mesh yet."))
 
     def start_solver(
@@ -948,6 +1010,28 @@ class MainWindow(QMainWindow):
             logger.error("%s", message)
             self.statusBar().showMessage(message)
             return
+        from foamstudio.core.assist import git_snapshot, validate_case
+
+        problems = validate_case(self._project.case_dir)
+        if problems and os.environ.get("FOAMSTUDIO_HEADLESS") != "1":
+            logger.warning("Pre-run check:\n%s", "\n".join(problems))
+            answer = QMessageBox.warning(
+                self,
+                self.tr("Pre-run check"),
+                "\n".join(problems[:15]) + "\n\nRun anyway?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        extra = self._project.case_dir / "system" / "foamstudioFunctions"
+        control = self._project.case_dir / "system" / "controlDict"
+        if extra.is_file() and control.is_file():  # Physics > Analysis outputs
+            from foamstudio.core.physics import include_functions
+
+            control.write_text(include_functions(control.read_text()), newline="\n")
+        rev = git_snapshot(self._project.case_dir, f"run {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        if rev:
+            logger.info("Case setup committed as %s", rev)
         solver = self._run_panel.solver.text().strip() or "simpleFoam"
         queue = JobQueue(bind(installation), workdir or self._project.case_dir)
         snappy = (self._project.case_dir / "system" / "snappyHexMeshDict").is_file()
@@ -956,6 +1040,14 @@ class MainWindow(QMainWindow):
                 queue.add(logged(command, name), name=name)
         elif resume:
             end = self._run_panel.end_time.text().strip()
+            if end:
+                from foamstudio.core.units import parse_quantity
+
+                try:  # "2 min" or "0.5 h" become seconds of simulated time
+                    end = f"{parse_quantity(end, 'time'):g}"
+                except ValueError as exc:
+                    self.statusBar().showMessage(str(exc))
+                    return
             queue.add_resume(
                 solver, parallel=self._run_panel.processes.value(), end_time=end or None
             )
@@ -1060,12 +1152,81 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(self.tr("Run finished"))
         self._stop_residual_timer()
         self._refresh_residuals()
+        self._notify(self.tr("Run finished"), str(result)[:200])
 
     def _solver_fail(self, message: str) -> None:
+        from foamstudio.core.assist import explain_foam_error
+
         self._record("failed")
-        logger.error("%s", message)
-        self.statusBar().showMessage(self.tr("Run failed"))
+        hint = explain_foam_error(message)
+        logger.error("%s%s", message, f"\n\nLikely fix: {hint}" if hint else "")
+        self.statusBar().showMessage(hint or self.tr("Run failed"))
         self._stop_residual_timer()
+        self._notify(self.tr("Run failed"), hint or message.splitlines()[0][:200])
+
+    def _notify(self, title: str, text: str) -> None:
+        """Tray toast so a long run can be left in the background."""
+        from PySide6.QtWidgets import QSystemTrayIcon
+
+        if not QSystemTrayIcon.isSystemTrayAvailable() or self.isActiveWindow():
+            return
+        if getattr(self, "_tray", None) is None:
+            self._tray = QSystemTrayIcon(self.windowIcon(), self)
+            self._tray.show()
+        self._tray.showMessage(title, text)
+
+    def open_physics(self) -> None:
+        from foamstudio.ui.physics_window import PhysicsWindow
+
+        win = PhysicsWindow(self, self)
+        self._physics = win
+        if self._viewer3d is not None:  # 3D picks fill the named-selection box
+            self._viewer3d.on_pick = lambda lo, hi: (win.set_pick_box(lo, hi), win.raise_())
+            self._viewer3d.pick_button.setEnabled(self._viewer3d._plot is not None)
+        win.show()
+
+    def open_palette(self) -> None:
+        from foamstudio.ui.extras import CommandPalette
+
+        CommandPalette(self).exec()
+
+    def open_shortcuts(self) -> None:
+        from foamstudio.ui.extras import shortcut_sheet
+
+        shortcut_sheet(self).exec()
+
+    def open_console(self) -> None:
+        from foamstudio.ui.extras import PythonConsole
+
+        case = self._project.case_dir if self._project else None
+        self._console = PythonConsole({"window": self, "project": self._project, "case": case})
+        self._console.show()
+
+    def open_vscode(self) -> None:
+        from foamstudio.core.assist import vscode_argv
+
+        if self._project is None:
+            self.statusBar().showMessage(self.tr("Create or open a project"))
+            return
+        try:
+            subprocess.Popen(vscode_argv(self._project.case_dir), shell=sys.platform == "win32")
+        except OSError as exc:
+            self.statusBar().showMessage(f"VS Code: {exc}")
+
+    def report_problem(self) -> None:
+        from PySide6.QtWidgets import QApplication
+
+        from foamstudio.core.assist import support_bundle
+
+        path = support_bundle(
+            Path.home() / "Desktop" if (Path.home() / "Desktop").is_dir() else Path.home()
+        )
+        QApplication.clipboard().setText(str(path))
+        QMessageBox.information(
+            self,
+            "FoamStudio",
+            f"Logs zipped to\n{path}\n\nPath copied. Attach it to a GitHub issue.",
+        )
 
     def _show_post_panel(self) -> None:
         if self._post_panel is None:
@@ -1185,7 +1346,20 @@ class MainWindow(QMainWindow):
     def open_dictionary(self) -> None:
         if self._dict_editor is None:
             self._dict_editor = DictEditor(self)
+            self._dict_editor.preview.connect(self._preview_blocks)
         self.properties_dock.setWidget(self._dict_editor)
+        if self._project is not None:
+            self._dict_editor.load_case(self._project.case_dir)
+
+    def _preview_blocks(self, text: str) -> None:
+        from foamstudio.core.blockmesh_preview import parse_blockmesh
+
+        try:
+            points, hexes = parse_blockmesh(text)
+        except ValueError as exc:
+            self.statusBar().showMessage(f"Preview: {exc}")
+            return
+        self.statusBar().showMessage(self._view().show_blocks(points, hexes))
 
     def show_residuals(self, text: str) -> None:
         from foamstudio.core.logparse import parse_solver_log
@@ -1367,6 +1541,15 @@ class MainWindow(QMainWindow):
             "field": lambda: self.show_field(arg or "p"),
             "quality": self.show_mesh_quality,
             "report": lambda: self.write_report(pdf=False),
+            "dict": self.open_dictionary,
+            "install": self.open_install_setup,
+            "runtimes": lambda: self.open_install_setup(tab=1),
+            "ssh": lambda: self.open_install_setup(tab=2),
+            "palette": self.open_palette,
+            "console": self.open_console,
+            "vscode": self.open_vscode,
+            "problem": self.report_problem,
+            "physics": self.open_physics,
         }
         action = actions.get(name)
         if action is None:

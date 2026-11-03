@@ -7,6 +7,9 @@ Every number here comes from a real OpenFOAM run on the development machine (WSL
 | Lid-driven cavity, Re = 100 | Ghia et al. 1982 | Ux on the vertical centreline, 17 stations | max abs error 0.0121 | 0.05 | **PASS** |
 | Backward-facing step, Re_h ≈ 37,000 | Driver and Seegmiller 1985 | Reattachment xr/h | 10h run-up: 5.54 (FAIL); 50h run-up: **5.90** | 6.26 ± 0.5 | **PASS** (marginal) |
 | Convergent-divergent nozzle, A/A* = 2 | 1-D isentropic, γ = 1.4 | Exit Mach, throat p/p0 (section averages) | +1.7 % / −1.9 % | 1 % | **FAIL** |
+| ISO 9300 toroidal-throat sonic nozzle, Rc/rt = 4, axisymmetric | Kliegel & Levine (1969) inviscid Cd | Discharge coefficient (3 meshes) | 0.99910 (fine), 0.99911 extrapolated | ±0.1 % | **PASS** (+0.03 %) |
+| Same nozzle, Rc/rt = 1 (tight throat) | Kliegel & Levine (1969) | Discharge coefficient | 0.99042 vs 0.98949 | ±0.1 % | **PASS** (+0.09 %) |
+| Conical nozzle, 15° half-angle, ε = 4, axisymmetric | 1-D CF × divergence factor λ = (1+cos α)/2 | Thrust coefficient | 1.5287 vs 1.5266 | ±0.5 % | **PASS** (+0.14 %) |
 | NACA 0012, α = 0° | Ladson, NASA TM 100526 | Cl / Cd | 0.0000 / 0.00878 | 0 ± 0.05 / 0.008 ± 0.004 | **PASS** (both) |
 | NACA 0012, α = 10° | Ladson, NASA TM 100526 | Cl / Cd | 1.073 / 0.0144 | 1.025 ± 0.025 / 0.012 ± 0.008 | Cl **FAIL** (+4.7 %), Cd **PASS** |
 
@@ -33,6 +36,51 @@ A 50h run-up (28,000 cells) gives xr/h = 5.90 at the sample line nearest the wal
 ## Nozzle
 
 `samples/nozzle/`: inviscid `rhoCentralFoam`, planar half-nozzle, 400 × 40 cells. The flow chokes and reaches M ≈ 2.2 at the exit. The section averages miss the 1 % band by 1–2 %, and exit total temperature drops 2.5 %, a sign of numerical dissipation. A mesh refinement study is the next step.
+
+## Nozzle, axisymmetric (2026-11-03)
+
+The planar nozzle above fails for a model-form reason: a 2D throat has a curved sonic line, so 1-D theory is the wrong reference. The fix is a reference that is exact for a real 2D throat. Kliegel & Levine (1969) corrected Hall's (1962) transonic series for the inviscid discharge coefficient of an axisymmetric throat with wall curvature R = Rc/rt:
+
+1 − Cd = (γ+1)/(1+R)² · [1/96 − (8γ−27)/(2304(1+R)) + (754γ²−757γ+3633)/(276480(1+R)²)]
+
+Cases are written by `scripts/nozzle_cfd.py` (ISO 9300 toroidal throat, 4° diffuser, air, p0 5 bar, T0 300 K, inviscid, 5° wedge) and run with `rhoCentralFoamAxi`, a patched rhoCentralFoam (`solvers/build_rhoCentralFoamAxi.sh`) that leaves wedge patches out of the Courant sum. Stock rhoCentralFoam counts them and cut dt ~12× at the axis, which is what stopped the earlier axisymmetric attempt. Mass flow is the inlet-patch flux averaged over the last 25 % of each run (the inlet carries a ±0.5 % acoustic oscillation) and scaled to 360° by 2π/sin θ, because the wedge faces are flat triangles, not arcs (2π/θ would bias Cd by 0.13 %).
+
+| Mesh (Rc/rt = 4) | Cells | Cd | vs Kliegel & Levine 0.998812 |
+| --- | --- | --- | --- |
+| Coarse | 120 × 24 | 0.998215 | −0.060 % |
+| Medium | 240 × 48 | 0.999013 | +0.020 % |
+| Fine | 480 × 96 | 0.999100 | +0.029 % |
+| Richardson extrapolation | | 0.999110 | +0.030 % (observed order 3.2, GCI_fine 0.001 %) |
+
+The converged result sits 0.03 % above the analytic value, inside the third-order truncation of the series. The tight throat (Rc/rt = 1, where the sonic line curves most) gives 0.990420 against 0.989495, +0.09 %. Viscous effects are excluded by design (inviscid on both sides), so this checks the transonic throat physics and the axisymmetric discretisation directly.
+
+**Thrust, 15° conical nozzle (ε = 4, p0 20 bar, back pressure 0.01 bar, 300 × 60 cells).** Thrust is integrated over the exit plane (ρu² + p − pa). The reference is the textbook conical-nozzle model: the 1-D momentum term scaled by the divergence factor λ = (1+cos 15°)/2 = 0.9830 and by the CFD discharge coefficient (0.9944), plus the 1-D pressure term. CFD gives CF = 1.5287 against 1.5266 (+0.14 %). The run started from the 1-D solution (`scripts/nozzle_init.py`) because an impulsive 2000:1 start from rest drove internal energy negative.
+
+## Raptor 3 sea-level nozzle and plume (study, not validation)
+
+There is no public Raptor 3 test data to validate against, so this is an engineering estimate built on the validated nozzle method above.
+
+**Inputs (sourced estimates, not SpaceX data):** chamber pressure 350 bar (Musk, 2023-24), O/F 3.6, expansion ratio 34.34 and exit diameter 1.30 m (FAA Starship Appendix G), so throat diameter 0.222 m. NASA CEA (RocketCEA, equilibrium): Tc 3783 K, throat molar mass 22.95, Pc/Pe 317.5, exit Mach 3.79, sea-level Isp 349 s. The CFD uses one calorically perfect gas with γ = 1.143, chosen so that 1-D theory reproduces CEA's Pc/Pe at ε = 34.34. It then gives c* 1837 m/s (CEA 1854) and 1-D sea-level thrust 253 tf (reported 250-280 tf). Ambient air uses the same gas properties at 300 K and 1 atm, a single-species simplification.
+
+**Geometry and mesh:** 80 % Rao bell (θn 32°, θe 8°, parabolic), 30° convergent, chamber contraction ratio 3, 15 mm lip with still air around the outside of the last 0.8 m of nozzle, plume domain 14 m × 4 m. Axisymmetric 5° wedge, 216,240 cells, inviscid, `rhoCentralFoamAxi`, 8 MPI ranks. The run starts from the 1-D solution inside the nozzle and still air outside (an impulsive start from rest drove internal energy negative in the bell), so the transient is the plume start-up into still air.
+
+**Nozzle performance (t = 12 ms, end of run; nozzle flow established since ~0.5 ms):**
+
+| Quantity | CFD 12 ms | CFD 6.66 ms | 1-D (γ = 1.143) | CEA / reported |
+| --- | --- | --- | --- | --- |
+| Mass flow (kg/s) | 732.3 (Cd 0.994) | 732.3 | 736.4 | — |
+| Sea-level thrust (tf) | 245.7 | 246.8 | 253 | 250-280 reported |
+| Vacuum thrust (tf) | 259.3 | 260.5 | — | — |
+| Sea-level Isp (s) | 335.5 | 337.0 | 343.7 | 349 (CEA), 350 reported |
+| Vacuum Isp (s) | 354.1 | 355.7 | — | — |
+| Exit Mach (mass average) | 3.80 | 3.80 | 3.84 | 3.79 |
+| Exit pressure (bar, area average) | 1.10 | 1.10 | 1.10 | 1.10 (CEA) |
+
+Thrust moved 0.5 % between 6.66 and 12 ms, and the inlet mass flow spread over the last quarter of the run is 2.2 %, so the nozzle numbers are settled to about ±0.5 %. CFD sits 2.4 % below 1-D Isp: about 0.6 % from the throat Cd and the rest from bell divergence and non-uniform exit flow, typical for an 80 % bell. The remaining gap to CEA (4 %) is mostly the frozen single-γ gas, which cannot recover the shifting-equilibrium energy that CEA includes.
+
+**Plume (12 ms):** the starting shock (the 1 atm pressure disturbance) is at x = 11.8 m and the hot-gas front (T > 500 K) at 11.5 m. Between 6.66 and 12 ms the front advanced about 4 m, roughly 0.75 km/s and slowing. The jet core carries a train of weak shock diamonds: compressions cross the axis at x ≈ 4.9, 6.5, 7.4 and 8.1 m, consistent with a near-ideally expanded jet (pe 1.10 bar vs pa 1.01 bar). The terminal shock (Mach disk) behind the starting vortex ring is at 9.46 m, where M drops from 3.78. It has moved 3.2 m since 6.66 ms, so the plume tip is still a start-up transient: the diamond region upstream of 8 m is quasi-steady, but a fully settled plume needs a longer run or a longer domain. The 14 m outlet was not reached.
+
+**Videos** (4K and 1080p, 0–12 ms, 600 frames, mirrored full nozzle, background coloured at ambient conditions): `raptor3_mach`, `raptor3_velocity`, `raptor3_pressure` (log scale), `raptor3_temperature`, `raptor3_density` (log scale). The earlier `raptor3_plume_4k.mp4` (Mach on the upper half, temperature on the lower half, 0–3 ms) is a preview only.
 
 ## Mesh studies (GCI, refinement ratio 2)
 

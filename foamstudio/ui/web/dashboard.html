@@ -54,6 +54,7 @@
   .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   #progress { color: var(--muted); margin-left: auto; }
   .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+.empty-state{margin-top:10px;display:none}.noproj .empty-state{display:block}.noproj .needs-project{display:none}
 </style>
 </head>
 <body>
@@ -71,7 +72,20 @@
   <div class="card"><div class="k">Licence</div><div class="v" id="licence" style="font-size:14px">–</div><div class="s" id="wsl"></div></div>
 </section>
 
-<section class="card" style="margin-top:10px">
+<section class="card empty-state" id="emptyState">
+  <h2>Start here</h2>
+  <p class="s">No project is open. Pick one way in; every step can be undone or reopened later.</p>
+  <div class="actions">
+    <button class="primary" onclick="act('demo')">Run the cavity demo (1 min)</button>
+    <button onclick="act('airfoil')">New airfoil case</button>
+    <button onclick="act('new')">New empty project</button>
+    <button onclick="act('open')">Open a project</button>
+    <button onclick="act('physics')">Start from a physics template</button>
+    <button onclick="act('install')">Set up OpenFOAM</button>
+  </div>
+</section>
+
+<section class="card needs-project" style="margin-top:10px">
   <div class="controls">
     <button class="primary" onclick="act('run')">▶ Run</button>
     <button class="danger" onclick="act('stop')">■ Stop</button>
@@ -101,11 +115,23 @@
       <button onclick="act('field', 'p')">Colour by p (3D)</button>
       <button onclick="act('quality')">Worst cells (3D)</button>
       <button onclick="act('report')">HTML report</button>
+      <button onclick="act('dict')">Edit dictionaries</button>
+    </div>
+    <h2 style="margin-top:14px">Environment and tools</h2>
+    <div class="actions">
+      <button onclick="act('physics')">Physics &amp; templates</button>
+      <button onclick="act('install')">Setup and libraries</button>
+      <button onclick="act('runtimes')">Runtimes</button>
+      <button onclick="act('ssh')">SSH machines</button>
+      <button onclick="act('palette')">Command palette</button>
+      <button onclick="act('console')">Python console</button>
+      <button onclick="act('vscode')">Open in VS Code</button>
+      <button onclick="act('problem')">Report a problem</button>
     </div>
   </div>
 </section>
 
-<section class="row">
+<section class="row needs-project">
   <div class="card">
     <h2>Force coefficients</h2>
     <canvas id="coef"></canvas><div class="legend" id="coefLegend"></div>
@@ -167,6 +193,7 @@
 
   function render(s) {
     document.body.classList.toggle("light", s.theme === "light");
+    document.body.classList.toggle("noproj", !s.project);
     $("title").textContent = s.project ? s.project : "FoamStudio";
     $("path").textContent = s.path || "No project open. Start with New project, New airfoil case or Run demo.";
     $("status").textContent = s.running ? "running" : "idle";

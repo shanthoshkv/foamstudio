@@ -33,7 +33,9 @@ class RunPanel(QWidget):
         self.continue_button.setToolTip(self.tr("Restart from the latest time and run to End time"))
         self.end_time = QLineEdit()
         self.end_time.setObjectName("continueEndTime")
-        self.end_time.setPlaceholderText(self.tr("End time (blank keeps controlDict)"))
+        self.end_time.setPlaceholderText(
+            self.tr("End time, e.g. 2000 or 5 min (blank keeps controlDict)")
+        )
         self.detached = QCheckBox(self.tr("Keep running if FoamStudio closes"))
         self.detached.setObjectName("runDetached")
         self.info = QLabel(self.tr("No mesh yet."))

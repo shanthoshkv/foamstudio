@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from foamstudio.core.logparse import ResidualSample
@@ -66,11 +67,14 @@ class ResidualPlot(QWidget):
             if self._plot is None:
                 plot = pg.PlotWidget()
                 plot.setObjectName("residualGraph")
+                plot.setLogMode(y=True)  # residuals span decades
                 plot.addLegend()
                 self.layout().addWidget(plot)
                 self._plot = plot
             assert isinstance(self._plot, pg.PlotWidget)
             self._plot.clear()
+            # 1e-5 target, log10 coords (right-click toggles log axis)
+            self._plot.addLine(y=-5, pen=pg.mkPen("#888", style=Qt.PenStyle.DashLine))
             fields = sorted({item.field for item in samples})
             for field in fields:
                 rows = [item for item in samples if item.field == field]

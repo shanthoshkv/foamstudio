@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QGuiApplication
@@ -29,8 +30,13 @@ class Viewer3D(QWidget):
         self.clip_button = QPushButton(self.tr("Clip plane"))
         self.slice_button = QPushButton(self.tr("Slice plane"))
         self.reset_button = QPushButton(self.tr("Reset view"))
+        self.pick_button = QPushButton(self.tr("Pick faces"))
+        self.pick_button.setToolTip(
+            self.tr("Drag a box over boundary faces (press r in the view) to name them")
+        )
+        self.on_pick = None  # callable(lo, hi) set by the host
         tools = QHBoxLayout()
-        for button in (self.clip_button, self.slice_button, self.reset_button):
+        for button in (self.clip_button, self.slice_button, self.reset_button, self.pick_button):
             button.setEnabled(False)
             tools.addWidget(button)
         tools.addStretch(1)
@@ -38,6 +44,26 @@ class Viewer3D(QWidget):
         self.clip_button.clicked.connect(lambda _checked=False: self.show_tool("clip"))
         self.slice_button.clicked.connect(lambda _checked=False: self.show_tool("slice"))
         self.reset_button.clicked.connect(lambda _checked=False: self.show_tool("plain"))
+        self.pick_button.clicked.connect(lambda _checked=False: self.start_pick())
+
+    def start_pick(self) -> None:
+        """Rubber-band pick of visible cells/faces; reports their bounding box to on_pick."""
+        plot: Any = self._plot
+        if plot is None:
+            return
+
+        def picked(sel: object) -> None:
+            b = getattr(sel, "bounds", None)
+            if b is None or getattr(sel, "n_cells", 0) == 0:
+                return
+            lo, hi = (b[0], b[2], b[4]), (b[1], b[3], b[5])
+            self.summary.setText(f"Picked {sel.n_cells} faces in box {lo} - {hi}")  # type: ignore[attr-defined]
+            if self.on_pick:
+                self.on_pick(lo, hi)
+
+        plot.enable_cell_picking(
+            callback=picked, through=False, show_message="Press r, then drag a box over faces"
+        )
 
     def set_surface(self, surface: Surface) -> str:
         count = len(surface.triangles)
@@ -135,6 +161,36 @@ class Viewer3D(QWidget):
                 button.setEnabled(True)
         return self._plot
 
+    def show_blocks(
+        self, points: list[tuple[float, float, float]], hexes: list[tuple[int, ...]]
+    ) -> str:
+        """blockMesh blocks as an outline, straight from the dictionary text (no OpenFOAM run)."""
+        text = f"Preview: {len(hexes)} blocks, {len(points)} vertices (unsaved edits)"
+        self.summary.setText(text)
+        if not viewer_enabled():
+            return text
+        try:
+            import numpy as np
+            import pyvista as pv
+
+            cells = np.hstack([[8, *h] for h in hexes])
+            grid = pv.UnstructuredGrid(cells, np.full(len(hexes), 12, np.uint8), np.array(points))
+            plot = self._plotter()
+            plot.clear()  # type: ignore[attr-defined]
+            plot.add_mesh(grid, opacity=0.25, color="#5fb3d4")  # type: ignore[attr-defined]
+            plot.add_mesh(grid.extract_all_edges(), color="white")  # type: ignore[attr-defined]
+            plot.add_point_labels(
+                np.array(points), [str(i) for i in range(len(points))], point_size=6, font_size=10
+            )  # type: ignore[attr-defined]
+            plot.reset_camera()  # type: ignore[attr-defined]
+            b = grid.bounds
+            if b[5] - b[4] < 0.05 * max(b[1] - b[0], b[3] - b[2]):  # 2D case: look straight down
+                plot.view_xy()  # type: ignore[attr-defined]
+        except Exception as exc:
+            text = f"{text}\n\nPreview failed: {exc}"
+            self.summary.setText(text)
+        return text
+
     def show_case(self, case: object, field: str | None) -> str:
         """polyMesh with patches (field None) or the latest-time field on the internal mesh."""
         from pathlib import Path
@@ -180,6 +236,9 @@ class Viewer3D(QWidget):
                 plot.add_mesh(mesh, scalars=field, show_scalar_bar=True)  # type: ignore[attr-defined]
                 self._mesh = mesh
             plot.reset_camera()  # type: ignore[attr-defined]
+            b = self._mesh.bounds
+            if b[5] - b[4] < 0.05 * max(b[1] - b[0], b[3] - b[2]):  # one-cell-thick 2D case
+                plot.view_xy()  # type: ignore[attr-defined]
         except Exception as exc:
             text = f"{text}\n\nThe 3D view could not load the case: {exc}"
             self.summary.setText(text)

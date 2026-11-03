@@ -1,0 +1,5 @@
+T=/usr/lib/openfoam/openfoam2412/tutorials
+for p in combustion/reactingFoam/laminar/counterFlowFlame2D multiphase/interFoam/laminar/damBreak/damBreak multiphase/interPhaseChangeFoam/cavitatingBullet heatTransfer/chtMultiRegionFoam/multiRegionHeater lagrangian/sprayFoam/aachenBomb incompressible/pimpleFoam/LES/pitzDaily incompressible/simpleFoam/mixerVessel2D incompressible/pimpleFoam/RAS/mixerVesselAMI2D incompressible/simpleFoam/turboPassageRotating incompressible/simpleFoam/rotorDisk incompressible/pimpleFoam/RAS/propeller incompressible/simpleFoam/pipeCyclic; do [ -e $T/$p ] && echo "OK $p" || echo "-- $p"; done
+find $T -maxdepth 3 -type d \( -iname '*adjoint*' -o -iname '*overPimple*' -o -iname '*overset*' -o -iname '*interPhaseChange*' \) | head
+find $T/multiphase -maxdepth 2 -type d -iname '*cavit*' | head -3
+source /usr/lib/openfoam/openfoam2412/etc/bashrc >/dev/null 2>&1; which cartesianMesh foamDictionary chemkinToFoam overPimpleDyMFoam adjointOptimisationFoam sprayFoam reactingFoam interFoam chtMultiRegionFoam
