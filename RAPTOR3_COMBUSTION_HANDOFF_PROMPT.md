@@ -26,15 +26,46 @@ AMD Ryzen 9 9950X3D (16 cores / 32 threads), RTX 5080 16 GB, 32 GB RAM, Windows.
 reactingFoam is CPU-only: run on 16 MPI ranks (physical cores). The GPU is only useful for
 rendering frames.
 
-## Step 0: environment (check first, install only what is missing)
+## Step 0: environment (check each item, install whatever is missing)
 
-- WSL2 Ubuntu 24.04 with OpenFOAM ESI **v2412** at `/usr/lib/openfoam/openfoam2412`
-  (`apt` package `openfoam2412-default` from the openfoam.com repository), plus `ffmpeg`.
-  Give WSL enough memory in `%UserProfile%\.wslconfig` (e.g. `memory=24GB`, `processors=32`).
-- Windows Python 3.12 (`py -3.12`) with `cantera` (3.1), `numpy`, `matplotlib`, `rocketcea`.
-- Repo `.venv` (Python 3.12) with `pyvista`, `matplotlib`, `numpy` for post-processing and frames.
-- Ask me before installing anything system-wide (WSL distro, OpenFOAM, .wslconfig).
-- Git Bash mangles `\\wsl.localhost\...` paths (a stray `C:\wsl.localhost\` folder appeared on
+I authorise you to install everything below that is missing, without asking again, so the run is
+not blocked. Check first, install only what is absent, and log each install in
+`raptor 3 combustion cfd.md`. Stop and tell me only if an install needs a reboot, a password I must
+type, or fails twice. Use `winget` for Windows packages.
+
+1. **WSL2 + Ubuntu 24.04.** Check `wsl -l -v`. If missing: `wsl --install -d Ubuntu-24.04`
+   (needs an admin PowerShell and probably a reboot; tell me to reboot, then continue). Confirm the
+   distro is WSL version 2. Create the Linux user if the first launch asks (tell me to type it).
+2. **`%UserProfile%\.wslconfig`** (create or merge, keep my existing keys):
+   `[wsl2]` `memory=24GB` `processors=32` `swap=8GB`; then `wsl --shutdown`. If the file exists with
+   other values, show me the diff before changing it.
+3. **OpenFOAM ESI v2412** inside Ubuntu, at `/usr/lib/openfoam/openfoam2412`. If missing:
+   `curl https://dl.openfoam.com/add-debian-repo.sh | sudo bash`, then
+   `sudo apt-get install -y openfoam2412-default`. Also `sudo apt-get install -y ffmpeg bc python3
+   python3-pip`. `sudo` needs my password: ask me to run those lines with the `!` prefix if it
+   prompts. Verify: `source /usr/lib/openfoam/openfoam2412/etc/bashrc && which reactingFoam
+   chemkinToFoam topoSet createPatch decomposePar && mpirun --version`. Make sure `mpirun -np 16`
+   works (add `--use-hwthread-cpus` or `--oversubscribe` only if needed).
+4. **Build the custom solver is NOT needed** for this case (`reactingFoam` is stock). Do not
+   build `rhoCentralFoamAxi` unless a non-reacting nozzle run is requested.
+5. **Windows tooling:** Git (`winget install Git.Git`), Python 3.12 (`winget install
+   Python.Python.3.12`), and `gh` only if a push needs auth.
+6. **Python packages for `py -3.12`:** `py -3.12 -m pip install cantera numpy matplotlib rocketcea`.
+   Check with `py -3.12 -c "import cantera, rocketcea, matplotlib; print(cantera.__version__)"`.
+7. **Repo venv** for rendering: `py -3.12 -m venv .venv`, then
+   `.venv\Scripts\pip install pyvista matplotlib numpy`. Verify offscreen rendering works on the
+   RTX 5080 (up-to-date NVIDIA driver; a 3840x2160 `pyvista` screenshot should succeed). If
+   offscreen VTK fails, try `PYVISTA_OFF_SCREEN=true` and a `vtk-osmesa` fallback.
+8. **Narration:** Windows SAPI (`System.Speech`) with voice Microsoft Zira is built in. If Zira is
+   missing, list installed voices and use another, noting which.
+9. **Disk:** keep at least 60 GB free on the drive holding WSL (reacting runs write many fields;
+   4K frames take several GB). Check with `Get-PSDrive`, warn me if lower.
+10. **Smoke checks before Step 1:** `py -3.12 scripts/raptor_chem.py <tempdir>` runs (regenerates the
+    mechanism files into a temp dir, compare with the committed ones), and
+    `wsl -d Ubuntu-24.04 -- bash -lc "source /usr/lib/openfoam/openfoam2412/etc/bashrc; chemFoam -help"`
+    prints usage.
+
+Git Bash mangles `\\wsl.localhost\...` paths (a stray `C:\wsl.localhost\` folder appeared on
   the laptop). Run the case writer from PowerShell, or with `MSYS_NO_PATHCONV=1`.
 
 ## Step 1: rebuild and time
